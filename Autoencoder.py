@@ -247,13 +247,13 @@ def save_model(model, name, compressed_length):
     print("Saved " + name + "_" + str(compressed_length) + " model to disk.")
 
 
-def load_model(name, compressed_length):
+def load_model(name):
     json_file = open("Autoencoder_Models/" + name + '.json', 'r')
     loaded_model_json = json_file.read()
     json_file.close()
     loaded_model = model_from_json(loaded_model_json)
     loaded_model.load_weights("Autoencoder_Models/" + name + ".h5")
-    print("Loaded model " + name + "_" + str(compressed_length) + " from disk.")
+    print("Loaded model " + name + " from disk.")
     return loaded_model
 
 
@@ -278,3 +278,13 @@ def compress_lattices(lattices, encoder):
         example = np.round(np.asarray(lattices[examples]))
         compressed.append(encoder.predict(example[None])[0])
     return np.asarray(compressed)
+
+def test_accuracy(encoder, decoder, test):
+    error = []
+    for lattice in test:
+        # reshaped = np.expand_dims(lattice, axis=3)
+        compressed = encoder.predict(lattice[None])[0]
+        reconstructed = np.round(decoder.predict(compressed[None])[0])
+        error.append(calculate_error(lattice, reconstructed.astype(bool)))
+        # auto_encoder_plot(apply_constraints(lattice)[1], compressed, apply_constraints(reconstructed)[1])
+    print("MEAN:", np.mean(error), " - ST-DEV:", np.std(error))
