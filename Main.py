@@ -20,6 +20,7 @@ def sinc(x):
 
 if __name__ == '__main__':
 
+    os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     print(tf.test.is_gpu_available())
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
@@ -32,7 +33,6 @@ if __name__ == '__main__':
     config.__setattr__("pop_size", best_fit_count)
     config.genome_config.add_activation('sin_adjusted', sinc)
 
-    errors = {}
     k_means = []
     k_bests = []
     k_means_std = []
@@ -41,39 +41,31 @@ if __name__ == '__main__':
     encoder = load_model("cross_entropy_encoder_256")
     decoder = load_model("cross_entropy_decoder_256")
 
-    # create_auto_encoder(256, auto_encoder_2d)
+    neat_generator = NeatGenerator(
+        encoder=encoder,
+        decoder=decoder,
+        config=config,
+        generations=latent_generations,
+        num_workers=thread_count,
+        k=10,
+        compressed_length=256
+    )
 
-    """
-    for vector_size in errors.keys():
-        encoder = load_model("encoder_" + str(vector_size))
-        decoder = load_model("decoder_" + str(vector_size))
-
-        neat_generator = NeatGenerator(
-            encoder=encoder,
-            decoder=decoder,
-            config=config,
-            generations=latent_generations,
-            num_workers=thread_count,
-            k=10,
-            compressed_length=vector_size
-        )
-
-        population, neat_means, neat_means_std, neat_bests, neat_bests_std = neat_generator.run_neat()
-
-        k_bests.append(neat_bests)
-        k_bests_std.append(neat_bests_std)
-        k_means.append(neat_means)
-        k_means_std.append(neat_means_std)
+    population, neat_means, neat_means_std, neat_bests, neat_bests_std = neat_generator.run_neat()
+    k_bests.append(neat_bests)
+    k_bests_std.append(neat_bests_std)
+    k_means.append(neat_means)
+    k_means_std.append(neat_means_std)
 
     plot_statistics(
         generations=latent_generations,
-        bests=k_bests,
-        bests_confidence=k_bests_std,
-        means=k_means,
-        means_confidence=k_bests_std,
-        names=["Vector Size="+str(x) for x in errors.keys()],
+        bests=neat_bests,
+        bests_confidence=neat_bests_std,
+        means=neat_means,
+        means_confidence=neat_means_std,
+        names=["Neat"],
         averaged_runs=averaged_runs
-    )"""
+    )
 
     """
     latent_solver_random = GeneticAlgorithm(

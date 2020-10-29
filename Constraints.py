@@ -63,7 +63,6 @@ def iterative_flood(input_lattice):
     label = 0
 
     # Create a set of all the voxels on the XY plane where Z = 0.
-
     for i in range(0, visited.shape[0]):
         for j in range(0, visited.shape[1]):
             if visited[i][j][0] == 0 and input_lattice[i][j][0] == 1:
@@ -110,15 +109,13 @@ def keep_largest_structure(visited, label):
     if label == 0:
         return visited
 
-    # keeps the pointer of the max voxels from the array number_of_voxels
-    most_voxels = 0
-
     # number_of_voxels contains the number of each of the labeled voxels
     number_of_voxels = np.zeros(label, int)
 
     for i in range(0, number_of_voxels.shape[0]):
         number_of_voxels[i] = np.count_nonzero(visited == i + 1)
 
+    # keeps the pointer of the max voxels from the array number_of_voxels
     most_voxels = np.where(number_of_voxels == np.amax(number_of_voxels))
 
     # the label that has the most voxels in the visited matrix

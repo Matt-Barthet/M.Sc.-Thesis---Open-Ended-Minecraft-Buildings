@@ -28,6 +28,8 @@ class NeatGenerator:
         self.std_list = [[] for _ in range(latent_generations)]
         self.bests_list = [[] for _ in range(latent_generations)]
         self.compressed_length = compressed_length
+        self.archive = {}
+        self.current_gen = 0
 
     class ParallelEvaluatorCompressed(neat.parallel.ParallelEvaluator):
         """
@@ -58,8 +60,6 @@ class NeatGenerator:
         :return:
         """
 
-        archive = {}
-
         for run in range(averaged_runs):
             
             print("\nStarting Run: ", run + 1)
@@ -68,7 +68,6 @@ class NeatGenerator:
             self.population.add_reporter(neat.StdOutReporter(True))
             self.population.add_reporter(neat.StatisticsReporter())
             best = self.population.run(self.novelty_search_parallel, self.generations)
-            archive.update({best: self.encoder.predict(best[None])[0]})
             means = self.population.reporters.reporters[1].get_fitness_mean()
             bests = self.population.reporters.reporters[1].get_fitness_stat(max)
 
@@ -76,20 +75,13 @@ class NeatGenerator:
                 self.means_list[generation].append(means[generation])
                 self.bests_list[generation].append(bests[generation])
 
-            self.novelty_search_parallel(self.population.population.items(), self.config)
-
             minimum = best
             for genome_id, genome in self.population.population.items():
-                if genome.fitness < minimum.fitness:
+                if genome.fitness is not None and genome.fitness < minimum.fitness:
                     minimum = genome
 
-            filename = "_K" + str(self.neighbors) + "_LeastNovel_" + str(run + 1)
-            l_lattice, _, _ = generate_lattice(0, minimum, self.config, plot=False, noise_flag=False)
-            lattice_to_file(list(l_lattice.values())[0], filename)
-
-            filename = "_K" + str(self.neighbors) + "_MostNovel_" + str(run + 1)
-            m_lattice, _, _ = generate_lattice(0, best, self.config, plot=True, noise_flag=False)
-            lattice_to_file(list(m_lattice.values())[0], filename)
+            # l_lattice, _ = generate_lattice(0, minimum, self.config, plot="Least Novel", noise_flag=False)
+            # m_lattice, _ = generate_lattice(0, best, self.config, plot="Most Novel", noise_flag=False)
 
         means = []
         means_confidence = []
@@ -120,7 +112,7 @@ class NeatGenerator:
         start = time.time()
         print("(CPU x " + str(thread_count) + "): Generating lattices and applying filters...", end=""),
         for genome_id, genome in genomes:
-            jobs.append(pool.apply_async(generate_lattice, (genome_id, genome, config, False, False)))
+            jobs.append(pool.apply_async(generate_lattice, (genome_id, genome, config, False, None)))
         for job, (genome_id, genome) in zip(jobs, genomes):
             key_pair, feasible = job.get()
             if not feasible:
@@ -143,7 +135,7 @@ class NeatGenerator:
         print("(CPU x " + str(thread_count) + "): Starting novelty search on compressed population...", end=""),
         jobs = []
         for genome_id in self.compressed_population.keys():
-            jobs.append(pool.apply_async(novelty_search, (genome_id, self.compressed_population, self.neighbors, self.compressed_length)))
+            jobs.append(pool.apply_async(novelty_search, (genome_id, self.compressed_population, self.neighbors, self.compressed_length, self.archive)))
         for job, genome_id in zip(jobs, self.compressed_population.keys()):
             self.population.population[genome_id].fitness = job.get()
         print("Done! (", np.round(time.time() - start, 2), "seconds ).")
@@ -151,14 +143,26 @@ class NeatGenerator:
         pool.close()
         pool.join()
 
+        fitness = {genome_id: fitness.fitness for genome_id, fitness in self.population.population.items() if
+                   fitness.fitness > 0}
+        sorted_keys = [k for k, _ in sorted(fitness.items(), key=lambda item: item[1])]
+        most = generate_lattice(0, self.population.population[sorted_keys[-1]], self.config, noise_flag=False)[0]
+        self.archive.update({sorted_keys[-1]: self.encoder.predict(most[0][None])[0]})
+
+        if self.current_gen % 10 == 0:
+            least= generate_lattice(0, self.population.population[sorted_keys[0]], self.config, noise_flag=False)[0]
+            mid = generate_lattice(0, self.population.population[sorted_keys[int(len(sorted_keys) / 2)]], self.config, noise_flag=False)[0]
+            novelty_voxel_plot([least[0], mid[0], most[0]], self.current_gen + 1)
+
         print("Number of Invalid Lattices: " + str(len(remove)))
 
         for key in remove:
             del self.population.population[key]
+        self.current_gen += 1
 
 
 # Evaluating the generated buildings according to an objective function (diversity vs fitness)
-def novelty_search(genome_id, compressed_population, k, compressed_length, archive=None):
+def novelty_search(genome_id, compressed_population, k, compressed_length, archive):
     """
 
     :param genome_id:
@@ -176,6 +180,9 @@ def novelty_search(genome_id, compressed_population, k, compressed_length, archi
         distances.append(np.sqrt(distance))
     distances.sort()
     k_average = np.round(np.average(distances[:k]), 2)
+
+    if len(archive) == 0:
+        return k_average
 
     distances.clear()
     for neighbour in list(archive.values()):
@@ -208,7 +215,11 @@ def generate_lattice(genome_id, genome, config, noise_flag=True, plot=None):
         noisy = add_noise(lattice)
     if plot is not None:
         voxel_plot(lattice, plot)
-    return {genome_id: np.asarray(lattice).astype(bool)}, np.asarray(noisy).astype(bool), feasible
+
+    if noise_flag:
+        return {genome_id: np.asarray(lattice).astype(bool)}, np.asarray(noisy).astype(bool), feasible
+    else:
+        return {genome_id: np.asarray(lattice).astype(bool)}, feasible
 
 
 def generate_lattices(genomes, config, noise_flag=True):

@@ -57,6 +57,18 @@ def voxel_plot(lattice, title, filename=None):
     else:
         plt.show()
 
+def novelty_voxel_plot(lattices, generation):
+    fig = plt.figure(figsize=(15, 6))
+    fig.tight_layout(pad=3)
+    titles = ["Least Novel", "Mid-Level Novel", "Most Novel"]
+    fig.suptitle("Range of Buildings - Generation: " + str(generation), fontsize=14)
+    for number in range(1, len(lattices) + 1):
+        ax = fig.add_subplot(1, 3, number, projection='3d')
+        ax.set_title(titles[number - 1])
+        ax = fig.gca(projection='3d')
+        ax.voxels(lattices[number - 1], edgecolor="k")#, facecolors=get_color_map(lattices[number - 1]))
+    plt.show()
+
 
 def auto_encoder_plot(example, code, reconstruction):
 
