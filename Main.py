@@ -33,11 +33,6 @@ if __name__ == '__main__':
     config.__setattr__("pop_size", best_fit_count)
     config.genome_config.add_activation('sin_adjusted', sinc)
 
-    k_means = []
-    k_bests = []
-    k_means_std = []
-    k_bests_std = []
-
     encoder = load_model("cross_entropy_encoder_256")
     decoder = load_model("cross_entropy_decoder_256")
 
@@ -52,17 +47,13 @@ if __name__ == '__main__':
     )
 
     population, neat_means, neat_means_std, neat_bests, neat_bests_std = neat_generator.run_neat()
-    k_bests.append(neat_bests)
-    k_bests_std.append(neat_bests_std)
-    k_means.append(neat_means)
-    k_means_std.append(neat_means_std)
 
     plot_statistics(
-        generations=latent_generations,
-        bests=neat_bests,
-        bests_confidence=neat_bests_std,
-        means=neat_means,
-        means_confidence=neat_means_std,
+        generations=[latent_generations],
+        bests=[neat_bests],
+        bests_confidence=[neat_bests_std],
+        means=[neat_means],
+        means_confidence=[neat_means_std],
         names=["Neat"],
         averaged_runs=averaged_runs
     )

@@ -150,9 +150,9 @@ class NeatGenerator:
         self.archive.update({sorted_keys[-1]: self.encoder.predict(most[0][None])[0]})
 
         if self.current_gen % 10 == 0:
-            least= generate_lattice(0, self.population.population[sorted_keys[0]], self.config, noise_flag=False)[0]
+            least = generate_lattice(0, self.population.population[sorted_keys[0]], self.config, noise_flag=False)[0]
             mid = generate_lattice(0, self.population.population[sorted_keys[int(len(sorted_keys) / 2)]], self.config, noise_flag=False)[0]
-            novelty_voxel_plot([least[0], mid[0], most[0]], self.current_gen + 1)
+            novelty_voxel_plot([analyse_lattice(least[0])[1], analyse_lattice(mid[0])[1], analyse_lattice(most[0])[1]], self.current_gen + 1)
 
         print("Number of Invalid Lattices: " + str(len(remove)))
 
@@ -161,7 +161,6 @@ class NeatGenerator:
         self.current_gen += 1
 
 
-# Evaluating the generated buildings according to an objective function (diversity vs fitness)
 def novelty_search(genome_id, compressed_population, k, compressed_length, archive):
     """
 
@@ -219,7 +218,7 @@ def generate_lattice(genome_id, genome, config, noise_flag=True, plot=None):
     if noise_flag:
         return {genome_id: np.asarray(lattice).astype(bool)}, np.asarray(noisy).astype(bool), feasible
     else:
-        return {genome_id: np.asarray(lattice).astype(bool)}, feasible
+        return {genome_id: np.asarray(lattice)}, feasible
 
 
 def generate_lattices(genomes, config, noise_flag=True):
@@ -247,7 +246,6 @@ def generate_lattices(genomes, config, noise_flag=True):
     return noisy, lattices
 
 
-# Generating the initial population of buildings according to an objective function
 def create_population_lattices(config, noise_flag=True):
     """
     Generates a population of lattices and their noisy counterparts.

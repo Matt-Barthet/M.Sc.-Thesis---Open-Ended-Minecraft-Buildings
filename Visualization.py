@@ -44,7 +44,6 @@ def plot_statistics(generations, bests, bests_confidence, means, means_confidenc
                      "Max Novelty vs Generations: " + names[stream])
 
 
-# Plot a 3-dimensional array of integers as voxels on a 3d plot.
 def voxel_plot(lattice, title, filename=None):
     fig = plt.figure()
     ax = fig.gca(projection='3d')
@@ -57,6 +56,7 @@ def voxel_plot(lattice, title, filename=None):
     else:
         plt.show()
 
+
 def novelty_voxel_plot(lattices, generation):
     fig = plt.figure(figsize=(15, 6))
     fig.tight_layout(pad=3)
@@ -66,7 +66,7 @@ def novelty_voxel_plot(lattices, generation):
         ax = fig.add_subplot(1, 3, number, projection='3d')
         ax.set_title(titles[number - 1])
         ax = fig.gca(projection='3d')
-        ax.voxels(lattices[number - 1], edgecolor="k")#, facecolors=get_color_map(lattices[number - 1]))
+        ax.voxels(lattices[number - 1], edgecolor="k", facecolors=get_color_map(lattices[number - 1]))
     plt.show()
 
 
@@ -105,7 +105,6 @@ def plot_fitness(averages, stdev, generation_count, title, label=None):
 
 
 def get_color_map(lattice):
-
     color = np.empty(lattice.shape, dtype=object)
     for i in range(0, lattice.shape[0]):
         for j in range(0, lattice.shape[1]):
@@ -125,23 +124,10 @@ def get_color_map(lattice):
     return color
 
 
-# Vizualize
-def vizualize(matrix_3D):
-
-    # floodme(matrix_3D,0,0,0)
-    # locateFloor(matrix_3D)
-    # locateCeiling(matrix_3D)
-
-    # print("Total number of voxels 8000")
-    # print("number of zeroes: " + str(numpy.count_nonzero(dimension_1==0)))
-    # print("number of nonzeroes: " + str(numpy.count_nonzero(dimension_1)))
-    # print("number of floating voxels: " + str(numpy.count_nonzero(dimension_1==1)))
-    # print("number of red voxels: " + str(numpy.count_nonzero(dimension_1==2)))
-
-    color = get_color_map(matrix_3D)
-
+def visualize(matrix_3d):
+    color = get_color_map(matrix_3d)
     fig = plt.figure(figsize=(10, 10))
     ax = fig.gca(projection='3d')
     # ax.set_aspect('equal')
-    ax.voxels(matrix_3D, facecolors=color, edgecolor="k")
+    ax.voxels(matrix_3d, facecolors=color, edgecolor="k")
     plt.show()

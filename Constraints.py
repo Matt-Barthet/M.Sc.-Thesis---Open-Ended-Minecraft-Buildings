@@ -1,12 +1,15 @@
 import time
 from multiprocessing import Pool
-
 import numpy as np
 from Delenox_Config import lattice_dimensions, thread_count
-from Visualization import vizualize
+from Visualization import visualize
 
 
 def apply_constraints_parallel(input_lattices):
+    """
+    :param input_lattices:
+    :return:
+    """
     pool = Pool(thread_count)
     jobs = []
     noisy_lattices = []
@@ -31,23 +34,39 @@ def apply_constraints(lattice):
         valid, lattice = repair_lattice(lattice)
         """if valid:
             valid, lattice = analyse_lattice(lattice)"""
-        change_to_ones(lattice)
+        # change_to_ones(lattice)
     return valid, lattice
 
 
 def repair_lattice(lattice):
+    """
+    :param lattice:
+    :return:
+    """
     lattice, valid = iterative_flood(lattice)
-    lattice = call_edge_detect(lattice)
+    # lattice = call_edge_detect(lattice)
     return True, lattice
 
 
 def analyse_lattice(lattice):
-    valid = True
-    locate_ceiling(lattice)
-    locate_floor(lattice)
+    """
+    :param lattice:
+    :return:
+    """
+    lattice = call_edge_detect(lattice)
+    lattice = locate_ceiling(lattice)
+    lattice = locate_floor(lattice)
+    return constraint_functions(lattice), lattice
+
+
+def constraint_functions(lattice):
+    """
+    :param lattice:
+    :return:
+    """
     # symmetry = callcaclPointSymmetry(lattice)
     # cx_avg, cy_avg = callcalCom(lattice)
-    return valid, lattice
+    return True
 
 
 def iterative_flood(input_lattice):
@@ -74,6 +93,13 @@ def iterative_flood(input_lattice):
 
 
 def detect_structure(lattice, visited, label, coordinate):
+    """
+    :param lattice:
+    :param visited:
+    :param label:
+    :param coordinate:
+    :return:
+    """
     to_fill = set()
     to_fill.add(coordinate)
 
@@ -103,9 +129,12 @@ def detect_structure(lattice, visited, label, coordinate):
     return np.asarray(visited, dtype=int)
 
 
-# Function returns visited 3d matrix with the structure of the most voxels
 def keep_largest_structure(visited, label):
-
+    """
+    :param visited:
+    :param label:
+    :return:
+    """
     if label == 0:
         return visited
 
@@ -143,6 +172,7 @@ def locate_floor(input_lattice):
         for y in range(0, input_lattice.shape[1]):
             if input_lattice[x][y][0] != 0:
                 input_lattice[x][y][0] = 3
+    return input_lattice
 
 
 def locate_ceiling(input_lattice):
@@ -172,7 +202,6 @@ def call_edge_detect(input_lattice):
     return input_lattice
 
 
-# Edge detection funct
 def edge_detect(input_slice):
     """
 
@@ -186,22 +215,21 @@ def edge_detect(input_slice):
         for j in range(0, input_slice.shape[1]):
             if i < input_slice.shape[0] - 1 and input_slice[i][j] == 1 and input_slice[i + 1][j] == 0 or i > 0 and \
                     input_slice[i][j] == 1 and input_slice[i - 1][j] == 0:
-                new_matrix[i][j] = 5
+                new_matrix[i][j] = 2
 
             if j < input_slice.shape[1] - 1 and input_slice[i][j] == 1 and input_slice[i][j + 1] == 0 or j > 0 and \
                     input_slice[i][j] == 1 and input_slice[i][j - 1] == 0:
-                new_matrix[i][j] = 5
+                new_matrix[i][j] = 2
 
             if i == 0 and input_slice[i][j] == 1 or i == input_slice.shape[0] - 1 and input_slice[i][j] == 1:
-                new_matrix[i][j] = 5
+                new_matrix[i][j] = 2
 
             if j == 0 and input_slice[i][j] == 1 or j == input_slice.shape[1] - 1 and input_slice[i][j] == 1:
-                new_matrix[i][j] = 5
+                new_matrix[i][j] = 2
 
     return new_matrix
 
 
-# Function that calls calcCom for the whole 3D matrix and outputs avg of Cx and Cy
 def call_cal_com(input_lattice):
     """
 
@@ -217,7 +245,6 @@ def call_cal_com(input_lattice):
     return round(cx_avg, 2), round(cy_avg, 2)
 
 
-# Calculate center of mass for a 2D slice
 def calc_com(input_slice):
     """
 
@@ -241,16 +268,9 @@ def calc_com(input_slice):
     centerOfMassX = np.sum(cx) / np.count_nonzero(cx)
     centerOfMassY = np.sum(cy) / np.count_nonzero(cy)
 
-    # print("This is i: " + str(i) + " and this is j: " + str(j))
-
-    # print("Counter: " + str(counter))
-    # print("Center of mass on the X axis: " + str(np.sum(centerOfMassX)))
-    # print("Center of mass on the Y axis: " + str(np.sum(centerOfMassY)))
-
     return centerOfMassX, centerOfMassY
 
 
-# Function that call calcPointSymmetry for the 3D matrix and outputs and average
 def call_calc_point_symmetry(input_lattice):
     """
 
@@ -265,7 +285,6 @@ def call_calc_point_symmetry(input_lattice):
     return round(symmetrySum / input_lattice.shape[0], 2)
 
 
-# Calculate point symmetry for a 2D slice
 def calc_point_symmetry(input_slice):
     """
 
@@ -290,7 +309,6 @@ def calc_point_symmetry(input_slice):
     return numberOfMirroredTiles / numberOfTiles
 
 
-# change in matrix all nonzeros with 1s, to calculate Symmetry and Center of Mass
 def change_to_ones(input_lattice):
     """
 
