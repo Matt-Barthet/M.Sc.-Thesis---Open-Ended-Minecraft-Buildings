@@ -1,27 +1,27 @@
-# Keras imports for Auto-Encoder implementation
 from multiprocessing import Pool
 from keras.models import Sequential, Model
 from keras.layers import Dense, Flatten, Reshape, Input, Conv2D, Conv2DTranspose, Conv3D, MaxPooling2D, UpSampling2D, \
                          MaxPooling3D, Conv3DTranspose, UpSampling3D
 from tensorflow.python.keras.models import model_from_json
-from Delenox_Config import lattice_dimensions, batch_size, no_epochs, thread_count
+from Delenox_Config import lattice_dimensions, batch_size, no_epochs, thread_count, value_range
 import numpy as np
 import matplotlib.pyplot as plt
 from Visualization import auto_encoder_plot, voxel_plot, visualize
-from Utility import add_noise, calculate_error
 
 
-def create_auto_encoder(compressed_length, function):
+def create_auto_encoder(compressed_length, model_type):
     """
+    Function to create and train a de-noising auto-encoder to compress 3D lattices
+    into a 1D latent vector representation.
 
-    :param compressed_length:
-    :param function:
-    :return:
+    :param compressed_length: length of the compressed representation
+    :param model_type: type of auto-encoder to create (2D vs 3D)
+    :return: the generated encoder and decoder models
     """
 
     # input_buildings, lattices_noisy = create_population_lattices(config)
 
-    ae, encoder_model, decoder_model = function(compressed_length)
+    ae, encoder_model, decoder_model = model_type(compressed_length)
 
     encoder_model.summary()
     decoder_model.summary()
@@ -45,17 +45,19 @@ def create_auto_encoder(compressed_length, function):
     plt.legend(['train', 'validation'], loc='upper left')
     plt.show()
 
-    save_model(encoder_model, "encoder", compressed_length)
-    save_model(decoder_model, "decoder", compressed_length)
+    save_model(encoder_model, "encoder")
+    save_model(decoder_model, "decoder")
 
-    return ae, encoder_model, decoder_model
+    return encoder_model, decoder_model
 
 
 def auto_encoder_3d(compressed_length):
     """
+    Function to create the structure of a 3D auto-encoder, using a series of convolution and sampling layers.
+    This model is specifically designed to take a lattice with resolution (20x20x20).
 
-    :param compressed_length:
-    :return:
+    :param compressed_length: desired latent vector size.
+    :return: auto-encoder model, as well as the encoder and decoder separately.
     """
 
     # Constructing the model for the encoder
@@ -89,9 +91,11 @@ def auto_encoder_3d(compressed_length):
 
 def auto_encoder_2d(compressed_length):
     """
+    Function to create the structure of a 2D auto-encoder, using a series of convolution and sampling layers.
+    This model is specifically designed to take a lattice with resolution (20x20x20).
 
-    :param compressed_length:
-    :return:
+    :param compressed_length: desired latent vector size.
+    :return: auto-encoder model, as well as the encoder and decoder separately.
     """
 
     # Constructing the model for the encoder
@@ -126,9 +130,12 @@ def auto_encoder_2d(compressed_length):
 
 def auto_encoder_2d_scalable(compressed_length):
     """
+    Function to create the structure of a 2D auto-encoder, using a series of convolution and sampling layers.
+    This model uses a dense layer at the inner most ends of the encoder and decoder to ensure it can scale
+    across multiple lattice resolutions.
 
-    :param compressed_length:
-    :return:
+    :param compressed_length: desired latent vector size.
+    :return: auto-encoder model, as well as the encoder and decoder separately.
     """
 
     # Constructing the model for the encoder
@@ -165,23 +172,24 @@ def auto_encoder_2d_scalable(compressed_length):
     return ae, encoder_model, decoder_model
 
 
-def save_model(model, name, compressed_length):
+def save_model(model, name):
     """
-    :param model:
-    :param name:
-    :param compressed_length:
+    Save any given model structure and its weights to disk.
+    :param model: model to be saved.
+    :param name: desired file name.
     """
     model_json = model.to_json()
-    with open("./Autoencoder_Models/" + name + "_" + str(compressed_length) + ".json", "w") as json_file:
+    with open("./Autoencoder_Models/" + name + ".json", "w") as json_file:
         json_file.write(model_json)
-    model.save_weights("Autoencoder_Models/" + name + "_" + str(compressed_length) + ".h5")
-    print("Saved " + name + "_" + str(compressed_length) + " model to disk.")
+    model.save_weights("Autoencoder_Models/" + name  + ".h5")
+    print("Saved " + name + " model to disk.")
 
 
 def load_model(name):
     """
-    :param name:
-    :return:
+    Load a model (structure and weights) from the model directory into memory for use.
+    :param name: file name of the desired model
+    :return: loaded model.
     """
     json_file = open("Autoencoder_Models/" + name + '.json', 'r')
     loaded_model_json = json_file.read()
@@ -192,11 +200,29 @@ def load_model(name):
     return loaded_model
 
 
+def compress_lattices(lattices, encoder):
+    """
+    Compress a population of lattices with the given encoder model.
+
+    :param lattices: population of lattices to be compressed.
+    :param encoder: model to compress the lattices.
+    :return: population of compressed lattices (1D latent vector).
+    """
+    compressed = []
+    for examples in range(len(lattices)):
+        example = np.round(np.asarray(lattices[examples]))
+        compressed.append(encoder.predict(example[None])[0])
+    return np.asarray(compressed)
+
+
 def add_noise_parallel(lattices, name):
     """
-    :param lattices:
-    :param name:
-    :return:
+    Multi-process approach to adding noise to a population of lattices, outputting the
+    results to a file.
+
+    :param lattices: population of lattices to be noised.
+    :param name: name of the output file containing the noisy population.
+    :return: the noisy population of lattices.
     """
     pool = Pool(thread_count)
     jobs = []
@@ -212,24 +238,31 @@ def add_noise_parallel(lattices, name):
     return np.asarray(noisy_lattices)
 
 
-def compress_lattices(lattices, encoder):
+def add_noise(lattice):
     """
-    :param lattices:
-    :param encoder:
-    :return:
+    Function to add noise to any given lattice using a set noise method.
+    Negative noise = removed voxels.
+    Additive noise = add voxels.
+    Bit-flip = flip the presence of a voxel at a coordinate.
+
+    :param lattice: lattice to be noised.
+    :return: noisy lattice.
     """
-    compressed = []
-    for examples in range(len(lattices)):
-        example = np.round(np.asarray(lattices[examples]))
-        compressed.append(encoder.predict(example[None])[0])
-    return np.asarray(compressed)
+    noisy_lattice = lattice.copy()
+    for (x, y, z) in value_range:
+        if np.random.random() < 0.025:
+            noisy_lattice[x][y][z] = 0
+    return noisy_lattice
 
 
 def test_accuracy(encoder, decoder, test):
     """
-    :param encoder:
-    :param decoder:
-    :param test:
+    Function to test the accuracy of an auto-encoder model through a given test population.
+
+    :param encoder: encoder that will compress the lattices.
+    :param decoder: decoder that will reconstruct the lattices from the compressed representation.
+    :param test: population of test lattices to calculate its accuracy.
+    :return: mean accuracy observed and its standard deviation.
     """
     error = []
     for lattice in test:
@@ -238,3 +271,20 @@ def test_accuracy(encoder, decoder, test):
         error.append(calculate_error(lattice, reconstructed.astype(bool)))
         # auto_encoder_plot(apply_constraints(lattice)[1], compressed, apply_constraints(reconstructed)[1])
     print("MEAN:", np.mean(error), " - ST-DEV:", np.std(error))
+
+
+def calculate_error(original, reconstruction):
+    """
+    Function to calculate the error rate between an original lattice and its reconstructed counterpart.
+    Error is calculated categorically, i.e: the value observed in the original must be identical in the
+    reconstructed version.
+
+    :param original: original lattice generated through the NEAT module.
+    :param reconstruction: reconstructed version generated through the auto-encoder model.
+    :return: categorical error.
+    """
+    error = 0
+    for (x, y, z) in value_range:
+        if original[x][y][z] != np.round(reconstruction[x][y][z]):
+            error += 1
+    return round(error / (lattice_dimensions[0] ** 3) * 100, 2)
