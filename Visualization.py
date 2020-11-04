@@ -1,3 +1,5 @@
+import time
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -66,7 +68,11 @@ def novelty_voxel_plot(lattices, generation):
         ax.set_title(titles[number - 1])
         ax = fig.gca(projection='3d')
         ax.voxels(lattices[number - 1], edgecolor="k", facecolors=get_color_map(lattices[number - 1]))
+    plt.savefig('./Generated_Database/Generation_' + str(generation) + '_' + str(time.time()) + '.png')
     plt.show()
+    np.save("./Generated_Database/Least_Novel_" + str(time.time()) + ".npy", lattices[0])
+    np.save("./Generated_Database/Mid_Novel_" + str(time.time()) + ".npy", lattices[1])
+    np.save("./Generated_Database/Most_Novel_" + str(time.time()) + ".npy", lattices[2])
 
 
 def auto_encoder_plot(example, code, reconstruction, error, title=""):
