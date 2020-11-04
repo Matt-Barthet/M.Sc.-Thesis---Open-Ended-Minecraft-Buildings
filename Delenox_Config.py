@@ -4,7 +4,7 @@ import numpy as np
 thread_count = 14
 
 # Experiment Parameters
-averaged_runs = 1
+averaged_runs = 10
 
 # Parameters for input space of un/compressed buildings
 lattice_dimensions = (20, 20, 20)
@@ -13,14 +13,14 @@ value_range = [(x, y, z) for x in range(lattice_dimensions[0]) for y in range(la
 
 # Auto-Encoder parameters for architecture and learning
 batch_size = 128
-no_epochs = 150
+no_epochs = 30
 validation_split = 0.2
 
 # NEAT parameters for initial building population generation
 initial_runs = 1
-best_fit_count = 100
+best_fit_count = 500
 
 # Parameters for evolutionary algorithm using latent vector space
-latent_generations = 50
+latent_generations = 26
 latent_mutation_rate = 0.1
 latent_variable_range = [-250, 250]

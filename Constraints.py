@@ -1,8 +1,8 @@
 import time
 from multiprocessing import Pool
 import numpy as np
-from Delenox_Config import lattice_dimensions, thread_count
-from Visualization import visualize
+from Delenox_Config import lattice_dimensions, thread_count, value_range
+from Visualization import visualize, voxel_plot
 
 
 def apply_constraints_parallel(input_lattices):
@@ -32,8 +32,8 @@ def apply_constraints(lattice):
     valid = False
     if np.sum(lattice) != 0 and np.sum(lattice) != lattice_dimensions[0] ** 3:
         valid, lattice = repair_lattice(lattice)
-        """if valid:
-            valid, lattice = analyse_lattice(lattice)"""
+        if valid:
+            valid, lattice = analyse_lattice(lattice)
         # change_to_ones(lattice)
     return valid, lattice
 
@@ -45,7 +45,7 @@ def repair_lattice(lattice):
     """
     lattice, valid = iterative_flood(lattice)
     # lattice = call_edge_detect(lattice)
-    return True, lattice
+    return valid, lattice
 
 
 def analyse_lattice(lattice):
@@ -56,16 +56,32 @@ def analyse_lattice(lattice):
     lattice = call_edge_detect(lattice)
     lattice = locate_ceiling(lattice)
     lattice = locate_floor(lattice)
-    return constraint_functions(lattice), lattice
+    return check_constraints(lattice), lattice
 
 
-def constraint_functions(lattice):
+def check_constraints(lattice):
     """
     :param lattice:
     :return:
     """
-    # symmetry = callcaclPointSymmetry(lattice)
-    # cx_avg, cy_avg = callcalCom(lattice)
+    """interior_count = 0
+    roof_count = 0
+    total_count = 0
+    floor_count = 0
+    for (x, y, z) in value_range:
+        if lattice[x][y][z] > 0:
+            total_count += 1
+            if lattice[x][y][z] == 4:
+                roof_count += 1
+            elif lattice[x][y][z] == 3:
+                floor_count += 1
+            elif lattice[x][y][z] == 1:
+                interior_count += 1
+
+    if interior_count / total_count < 0.5:
+        return False"""
+    """if floor_count / roof_count < 0.5:
+        return False"""
     return True
 
 
@@ -155,6 +171,7 @@ def keep_largest_structure(visited, label):
         for j in range(0, visited.shape[1]):
             for k in range(0, visited.shape[2]):
                 if visited[i][j][k] != 0 and not visited[i][j][k] == keep_voxel:
+
                     visited[i][j][k] = 0
                 elif visited[i][j][k] != 0 and visited[i][j][k] == keep_voxel:
                     visited[i][j][k] = 1

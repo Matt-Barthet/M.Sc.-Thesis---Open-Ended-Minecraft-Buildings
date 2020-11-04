@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from Utility import calculate_error
 
 
 def plot_statistics(generations, bests, bests_confidence, means, means_confidence, names, averaged_runs, title=None):
@@ -33,7 +32,7 @@ def plot_statistics(generations, bests, bests_confidence, means, means_confidenc
     plt.grid()
     plt.show()
 
-    for stream in range(len(bests)):
+    """for stream in range(len(bests)):
         plot_fitness(means[stream],
                      means_confidence[stream],
                      generations,
@@ -41,13 +40,13 @@ def plot_statistics(generations, bests, bests_confidence, means, means_confidenc
         plot_fitness(bests[stream],
                      bests_confidence[stream],
                      generations,
-                     "Max Novelty vs Generations: " + names[stream])
+                     "Max Novelty vs Generations: " + names[stream])"""
 
 
 def voxel_plot(lattice, title, filename=None):
     fig = plt.figure()
     ax = fig.gca(projection='3d')
-    ax.voxels(lattice, edgecolor="k")
+    ax.voxels(lattice, edgecolor="k", facecolors=get_color_map(lattice))
     ax.set_title(title)
     if filename is not None:
         plt.savefig('Lattice_Dumps/lattice' + filename + '.png', bbox_inches='tight')
@@ -70,10 +69,10 @@ def novelty_voxel_plot(lattices, generation):
     plt.show()
 
 
-def auto_encoder_plot(example, code, reconstruction):
+def auto_encoder_plot(example, code, reconstruction, error, title=""):
 
     fig = plt.figure(figsize=plt.figaspect(2.25))
-
+    fig.suptitle(title)
     ax = fig.add_subplot(3, 1, 1, projection='3d')
     ax.set_title("Original Lattice")
     ax = fig.gca(projection='3d')
@@ -85,7 +84,7 @@ def auto_encoder_plot(example, code, reconstruction):
     ax.set_title("Compressed Representation - " + str(len(code)) + " bits")
 
     ax = fig.add_subplot(3, 1, 3, projection='3d')
-    ax.set_title("Reconstructed Lattice - Error: " + str(calculate_error(example, reconstruction)) + "%")
+    ax.set_title("Reconstructed Lattice - Error: " + str(error) + "%")
     ax = fig.gca(projection='3d')
     ax.voxels(reconstruction, edgecolor="k", facecolors=get_color_map(reconstruction))
 

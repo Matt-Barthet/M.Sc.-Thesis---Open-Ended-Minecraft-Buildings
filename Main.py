@@ -1,12 +1,10 @@
 import os
 import time
 import neat
-
-from Constraints import apply_constraints, apply_constraints_parallel
 from NeatGenerator import NeatGenerator, create_population_lattices
 from GeneticAlgorithm import GeneticAlgorithm
-from Autoencoder import auto_encoder_2d, auto_encoder_3d, load_model, create_auto_encoder, add_noise_parallel
-from Utility import calculate_error
+from Autoencoder import auto_encoder_2d, auto_encoder_3d, load_model, create_auto_encoder, add_noise_parallel, \
+    test_accuracy
 from Visualization import plot_statistics, auto_encoder_plot
 from Delenox_Config import *
 import tensorflow as tf
@@ -33,8 +31,10 @@ if __name__ == '__main__':
     config.__setattr__("pop_size", best_fit_count)
     config.genome_config.add_activation('sin_adjusted', sinc)
 
-    encoder = load_model("cross_entropy_encoder_256")
-    decoder = load_model("cross_entropy_decoder_256")
+    # create_auto_encoder(256, auto_encoder_3d)
+
+    encoder = load_model("material_encoder_256")
+    decoder = load_model("material_decoder_256")
 
     neat_generator = NeatGenerator(
         encoder=encoder,
@@ -48,8 +48,10 @@ if __name__ == '__main__':
 
     population, neat_means, neat_means_std, neat_bests, neat_bests_std = neat_generator.run_neat()
 
+    np.save("./Novelty_Experiments/Neat_Experiment_No_Constraints.npy", np.asarray([neat_means, neat_means_std, neat_bests, neat_bests_std]))
+
     plot_statistics(
-        generations=[latent_generations],
+        generations=latent_generations,
         bests=[neat_bests],
         bests_confidence=[neat_bests_std],
         means=[neat_means],

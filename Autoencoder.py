@@ -1,12 +1,12 @@
 from multiprocessing import Pool
-from keras.models import Sequential, Model
+import matplotlib.pyplot as plt
+import numpy as np
 from keras.layers import Dense, Flatten, Reshape, Input, Conv2D, Conv2DTranspose, Conv3D, MaxPooling2D, UpSampling2D, \
                          MaxPooling3D, Conv3DTranspose, UpSampling3D
+from keras.models import Sequential, Model
 from tensorflow.python.keras.models import model_from_json
 from Delenox_Config import lattice_dimensions, batch_size, no_epochs, thread_count, value_range
-import numpy as np
-import matplotlib.pyplot as plt
-from Visualization import auto_encoder_plot, voxel_plot, visualize
+from Visualization import auto_encoder_plot
 
 
 def create_auto_encoder(compressed_length, model_type):
@@ -27,12 +27,12 @@ def create_auto_encoder(compressed_length, model_type):
     decoder_model.summary()
 
     # Compiling the AE and fitting it using the noisy population as input and the original population as the target
-    ae.compile(optimizer='adam', loss='binary_crossentropy', metrics=['binary_accuracy'])
+    ae.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['categorical_accuracy', 'binary_accuracy'])
 
-    test = np.load("Test_Carved.npy")
-    training = np.load("Training_Carved.npy")
-    training_noisy = np.load("Training_Carved_Noisy.npy")
-    test_noisy = np.load("Test_Carved_Noisy.npy")
+    test = np.load("Training_Materials.npy")
+    training = np.load("Test_Materials.npy")
+    training_noisy = np.load("Test_Materials_Noisy.npy")
+    test_noisy = np.load("Training_Materials_noisy.npy")
 
     history = ae.fit(x=training_noisy, y=training, epochs=no_epochs,
                      batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True)
@@ -45,8 +45,8 @@ def create_auto_encoder(compressed_length, model_type):
     plt.legend(['train', 'validation'], loc='upper left')
     plt.show()
 
-    save_model(encoder_model, "encoder")
-    save_model(decoder_model, "decoder")
+    save_model(encoder_model, "material_encoder_256")
+    save_model(decoder_model, "material_decoder_256")
 
     return encoder_model, decoder_model
 
@@ -62,7 +62,7 @@ def auto_encoder_3d(compressed_length):
 
     # Constructing the model for the encoder
     encoder_model = Sequential(name="Encoder_"+str(compressed_length))
-    encoder_model.add(Conv3D(compressed_length / 4, kernel_size=(3, 3, 3), activation='relu', input_shape=(20, 20, 20, 1)))
+    encoder_model.add(Conv3D(compressed_length / 4, kernel_size=(3, 3, 3), activation='relu', input_shape=(20, 20, 20, 5)))
     encoder_model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2)))
     encoder_model.add(Conv3D(compressed_length / 2, kernel_size=(2, 2, 2), activation='relu'))
     encoder_model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2)))
@@ -78,10 +78,10 @@ def auto_encoder_3d(compressed_length):
     decoder_model.add(UpSampling3D(size=(2, 2, 2)))
     decoder_model.add(Conv3DTranspose(compressed_length / 4, kernel_size=(2, 2, 2), activation='relu'))
     decoder_model.add(UpSampling3D(size=(2, 2, 2)))
-    decoder_model.add(Conv3DTranspose(1, kernel_size=(3, 3, 3), activation='sigmoid'))
+    decoder_model.add(Conv3DTranspose(5, kernel_size=(3, 3, 3), activation='sigmoid'))
 
     # Combining the two models into the auto-encoder model
-    ae_input = Input((20, 20, 20, 1))
+    ae_input = Input((20, 20, 20, 5))
     ae_encoder_output = encoder_model(ae_input)
     ae_decoder_output = decoder_model(ae_encoder_output)
     ae = Model(ae_input, ae_decoder_output)
@@ -265,11 +265,13 @@ def test_accuracy(encoder, decoder, test):
     :return: mean accuracy observed and its standard deviation.
     """
     error = []
-    for lattice in test:
-        compressed = encoder.predict(lattice[None])[0]
-        reconstructed = np.round(decoder.predict(compressed[None])[0])
-        error.append(calculate_error(lattice, reconstructed.astype(bool)))
-        # auto_encoder_plot(apply_constraints(lattice)[1], compressed, apply_constraints(reconstructed)[1])
+    for one_hot_lattice in test:
+        lattice = convert_to_integer(one_hot_lattice)
+        compressed = encoder.predict(one_hot_lattice[None])[0]
+        reconstructed = decoder.predict(compressed[None])[0]
+        integer_reconstruct = convert_to_integer(reconstructed)
+        error.append(calculate_error(lattice, integer_reconstruct))
+        auto_encoder_plot(lattice, compressed, integer_reconstruct, error[-1])
     print("MEAN:", np.mean(error), " - ST-DEV:", np.std(error))
 
 
@@ -288,3 +290,17 @@ def calculate_error(original, reconstruction):
         if original[x][y][z] != np.round(reconstruction[x][y][z]):
             error += 1
     return round(error / (lattice_dimensions[0] ** 3) * 100, 2)
+
+
+def convert_to_integer(lattice):
+    """
+    Convert material lattice from one-hot representation to integer encoding representation.
+
+    :param lattice: lattice of one-hot material vectors.
+    :return: lattice of integer material codes.
+    """
+    integer_reconstruct = np.zeros(lattice_dimensions)
+    for channel in range(20):
+        for row in range(20):
+            integer_reconstruct[channel][row] = np.argmax(lattice[channel][row], axis=1)
+    return integer_reconstruct
