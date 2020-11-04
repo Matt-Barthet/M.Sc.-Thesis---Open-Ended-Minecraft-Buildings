@@ -69,10 +69,10 @@ def novelty_voxel_plot(lattices, generation):
         ax = fig.gca(projection='3d')
         ax.voxels(lattices[number - 1], edgecolor="k", facecolors=get_color_map(lattices[number - 1]))
     plt.savefig('./Generated_Database/Generation_' + str(generation) + '_' + str(time.time()) + '.png')
-    plt.show()
     np.save("./Generated_Database/Least_Novel_" + str(time.time()) + ".npy", lattices[0])
     np.save("./Generated_Database/Mid_Novel_" + str(time.time()) + ".npy", lattices[1])
     np.save("./Generated_Database/Most_Novel_" + str(time.time()) + ".npy", lattices[2])
+    # plt.show()
 
 
 def auto_encoder_plot(example, code, reconstruction, error, title=""):
@@ -93,8 +93,8 @@ def auto_encoder_plot(example, code, reconstruction, error, title=""):
     ax.set_title("Reconstructed Lattice - Error: " + str(error) + "%")
     ax = fig.gca(projection='3d')
     ax.voxels(reconstruction, edgecolor="k", facecolors=get_color_map(reconstruction))
-
-    plt.show()
+    plt.savefig('./Generated_Database/Compression_' + str(time.time()) + '.png')
+    # plt.show()
 
 
 def plot_fitness(averages, stdev, generation_count, title, label=None):
