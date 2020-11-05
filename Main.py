@@ -1,11 +1,13 @@
 import os
 import time
 import neat
+
+from Constraints import new_edge_detect
 from NeatGenerator import NeatGenerator, create_population_lattices
 from GeneticAlgorithm import GeneticAlgorithm
 from Autoencoder import auto_encoder_2d, auto_encoder_3d, load_model, create_auto_encoder, add_noise_parallel, \
     test_accuracy
-from Visualization import plot_statistics, auto_encoder_plot
+from Visualization import plot_statistics, auto_encoder_plot, visualize
 from Delenox_Config import *
 import tensorflow as tf
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -35,6 +37,10 @@ if __name__ == '__main__':
 
     encoder = load_model("material_encoder_256")
     decoder = load_model("material_decoder_256")
+
+    test = np.load("Most_Novel.npy")
+    visualize(test)
+    visualize(new_edge_detect(test))
 
     neat_generator = NeatGenerator(
         encoder=encoder,

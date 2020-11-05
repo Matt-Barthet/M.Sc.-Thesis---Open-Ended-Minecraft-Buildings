@@ -57,16 +57,8 @@ class NeatGenerator:
                 self.means_list[generation].append(means[generation])
                 self.bests_list[generation].append(bests[generation])
 
-            histogram, x_edges, y_edges = np.histogram2d(x=self.floor_to_ceiling_ratios, y=self.building_to_lattice_ratios, bins=np.linspace(0, 1, 10))
-
-            fig = plt.figure()
-            plt.title("Expressive Range of Generator")
-            plt.xlabel("Floor Voxels : Ceiling Voxels")
-            plt.ylabel("Total Voxels : Lattice Volume")
-            pops = plt.imshow(histogram, interpolation='nearest', origin='low', aspect='auto',
-                       extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]], cmap=plt.cm.get_cmap("gray"))
-            fig.colorbar(pops, label="Building Frequency")
-            plt.show()
+        expressive_graph(self.interior_space_ratios, self.floor_to_ceiling_ratios, "No Constraints", "Interior Volume Ratio", "Floor to Ceiling Ratio")
+        expressive_graph(self.interior_space_ratios, self.building_to_lattice_ratios, "No Constraints", "Interior Volume Ratio", "Total Volume Ratio")
 
         means = []
         means_confidence = []

@@ -1,8 +1,8 @@
-import time
 from multiprocessing import Pool
-import numpy as np
 from Delenox_Config import lattice_dimensions, thread_count, value_range
-from Visualization import visualize, voxel_plot
+import numpy as np
+
+from Visualization import visualize
 
 
 def apply_constraints_parallel(input_lattices):
@@ -54,7 +54,7 @@ def analyse_lattice(lattice):
     :param lattice:
     :return:
     """
-    lattice = call_edge_detect(lattice)
+    lattice = new_edge_detect(lattice)
     lattice = locate_ceiling(lattice)
     lattice = locate_floor(lattice)
     return check_constraints(lattice), lattice
@@ -213,44 +213,36 @@ def locate_ceiling(input_lattice):
     return input_lattice
 
 
-def call_edge_detect(input_lattice):
+def new_edge_detect(lattice):
     """
 
-    :param input_lattice:
+    :param lattice:
     :return:
     """
-    for i in range(1, input_lattice.shape[2] - 1):
-        input_lattice[:, :, i] = edge_detect(input_lattice[:, :, i])
+    for x, y, z in value_range:
+        if lattice[x][y][z] == 1:
 
-    return input_lattice
+            if x == 0 or y == 0 or z == 0:
+                lattice[x][y][z] = 2
+                continue
 
+            try:
+                if lattice[x + 1][y][z] == 0:
+                    lattice[x][y][z] = 2
+                elif lattice[x - 1][y][z] == 0:
+                    lattice[x][y][z] = 2
+                elif lattice[x][y + 1][z] == 0:
+                    lattice[x][y][z] = 2
+                elif lattice[x][y - 1][z] == 0:
+                    lattice[x][y][z] = 2
+                elif lattice[x][y][z + 1] == 0:
+                    lattice[x][y][z] = 2
+                elif lattice[x][y][z - 1] == 0:
+                    lattice[x][y][z] = 2
+            except IndexError:
+                lattice[x][y][z] = 2
 
-def edge_detect(input_slice):
-    """
-
-    :param input_slice:
-    :return:
-    """
-    # new_matrix = np.full(input_slice.shape, 5)
-    new_matrix = input_slice.copy()
-
-    for i in range(0, input_slice.shape[0]):
-        for j in range(0, input_slice.shape[1]):
-            if i < input_slice.shape[0] - 1 and input_slice[i][j] == 1 and input_slice[i + 1][j] == 0 or i > 0 and \
-                    input_slice[i][j] == 1 and input_slice[i - 1][j] == 0:
-                new_matrix[i][j] = 2
-
-            if j < input_slice.shape[1] - 1 and input_slice[i][j] == 1 and input_slice[i][j + 1] == 0 or j > 0 and \
-                    input_slice[i][j] == 1 and input_slice[i][j - 1] == 0:
-                new_matrix[i][j] = 2
-
-            if i == 0 and input_slice[i][j] == 1 or i == input_slice.shape[0] - 1 and input_slice[i][j] == 1:
-                new_matrix[i][j] = 2
-
-            if j == 0 and input_slice[i][j] == 1 or j == input_slice.shape[1] - 1 and input_slice[i][j] == 1:
-                new_matrix[i][j] = 2
-
-    return new_matrix
+    return lattice
 
 
 def call_cal_com(input_lattice):

@@ -1,10 +1,10 @@
 import numpy as np
 
 # System Parameters
-thread_count = 10
+thread_count = 16
 
 # Experiment Parameters
-averaged_runs = 10
+averaged_runs = 1
 
 # Parameters for input space of un/compressed buildings
 lattice_dimensions = (20, 20, 20)
@@ -18,9 +18,9 @@ validation_split = 0.2
 
 # NEAT parameters for initial building population generation
 initial_runs = 1
-best_fit_count = 250
+best_fit_count = 1024
 
 # Parameters for evolutionary algorithm using latent vector space
-latent_generations = 1
+latent_generations = 25
 latent_mutation_rate = 0.1
 latent_variable_range = [-250, 250]

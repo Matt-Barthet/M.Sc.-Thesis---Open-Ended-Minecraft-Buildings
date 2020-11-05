@@ -75,6 +75,18 @@ def novelty_voxel_plot(lattices, generation):
     # plt.show()
 
 
+def expressive_graph(x, y, title, x_label, y_label):
+    histogram, x_edges, y_edges = np.histogram2d(x=x, y=y, bins=np.linspace(0, 1, 10))
+    fig = plt.figure()
+    plt.title(title)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    pops = plt.imshow(histogram, interpolation='nearest', origin='low', aspect='auto',
+                      extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]], cmap=plt.cm.get_cmap("gray"))
+    fig.colorbar(pops, label="Building Frequency")
+    plt.show()
+
+
 def auto_encoder_plot(example, code, reconstruction, error, title=""):
 
     fig = plt.figure(figsize=plt.figaspect(2.25))
