@@ -30,6 +30,9 @@ class NeatGenerator:
         self.compressed_length = compressed_length
         self.archive = {}
         self.current_gen = 0
+        self.interior_space_ratios = []
+        self.floor_to_ceiling_ratios = []
+        self.building_to_lattice_ratios = []
 
     def run_neat(self):
         """
@@ -46,7 +49,7 @@ class NeatGenerator:
             self.population = neat.Population(self.config)
             self.population.add_reporter(neat.StdOutReporter(True))
             self.population.add_reporter(neat.StatisticsReporter())
-            best = self.population.run(self.novelty_search_parallel, self.generations)
+            self.population.run(self.novelty_search_parallel, self.generations)
             means = self.population.reporters.reporters[1].get_fitness_mean()
             bests = self.population.reporters.reporters[1].get_fitness_stat(max)
 
@@ -54,13 +57,16 @@ class NeatGenerator:
                 self.means_list[generation].append(means[generation])
                 self.bests_list[generation].append(bests[generation])
 
-            minimum = best
-            for genome_id, genome in self.population.population.items():
-                if genome.fitness is not None and genome.fitness < minimum.fitness:
-                    minimum = genome
+            histogram, x_edges, y_edges = np.histogram2d(x=self.floor_to_ceiling_ratios, y=self.building_to_lattice_ratios, bins=np.linspace(0, 1, 10))
 
-            # l_lattice, _ = generate_lattice(0, minimum, self.config, plot="Least Novel", noise_flag=False)
-            # m_lattice, _ = generate_lattice(0, best, self.config, plot="Most Novel", noise_flag=False)
+            fig = plt.figure()
+            plt.title("Expressive Range of Generator")
+            plt.xlabel("Floor Voxels : Ceiling Voxels")
+            plt.ylabel("Total Voxels : Lattice Volume")
+            pops = plt.imshow(histogram, interpolation='nearest', origin='low', aspect='auto',
+                       extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]], cmap=plt.cm.get_cmap("gray"))
+            fig.colorbar(pops, label="Building Frequency")
+            plt.show()
 
         means = []
         means_confidence = []
@@ -77,28 +83,38 @@ class NeatGenerator:
 
     def novelty_search_parallel(self, genomes, config):
         """
+        Multi-process fitness function for the NEAT module of the project.  Implements novelty search and
+        scales the workload across the thread count given in the experiment parameters. Assigns a novelty
+        value to each genome and keeps the feasible population separate, discarding and randomly regenerating
+        the infeasible individuals.
 
-        :param genomes:
-        :param config:
-        :return:
+        :param genomes: population of genomes to be evaluated.
+        :param config: the NEAT-Python configuration file.
         """
         lattices = {}
         remove = []
         pool = Pool(thread_count)
         jobs = []
         self.compressed_population.clear()
+        self.interior_space_ratios.clear()
+        self.floor_to_ceiling_ratios.clear()
+        self.building_to_lattice_ratios.clear()
 
         start = time.time()
         print("(CPU x " + str(thread_count) + "): Generating lattices and applying filters...", end=""),
         for genome_id, genome in genomes:
             jobs.append(pool.apply_async(generate_lattice, (genome_id, genome, config, False, None)))
         for job, (genome_id, genome) in zip(jobs, genomes):
-            key_pair, _, feasible = job.get()
+            key_pair, _, feasible, metrics = job.get()
             if not feasible:
                 remove.append(genome_id)
                 genome.fitness = 0
             else:
                 lattices.update(key_pair)
+                self.interior_space_ratios.append(metrics[0])
+                self.floor_to_ceiling_ratios.append(metrics[1])
+                self.building_to_lattice_ratios.append(metrics[2])
+
         print("Done! (", np.round(time.time() - start, 2), "seconds ).")
 
         start = time.time()
@@ -112,9 +128,10 @@ class NeatGenerator:
 
         start = time.time()
         print("(CPU x " + str(thread_count) + "): Starting novelty search on compressed population...", end=""),
-        jobs = []
+        jobs.clear()
         for genome_id in self.compressed_population.keys():
-            jobs.append(pool.apply_async(novelty_search, (genome_id, self.compressed_population, self.neighbors, self.compressed_length, self.archive)))
+            parameters = (genome_id, self.compressed_population, self.neighbors, self.compressed_length, self.archive)
+            jobs.append(pool.apply_async(novelty_search, parameters))
         for job, genome_id in zip(jobs, self.compressed_population.keys()):
             self.population.population[genome_id].fitness = job.get()
         print("Done! (", np.round(time.time() - start, 2), "seconds ).")
@@ -132,11 +149,11 @@ class NeatGenerator:
         most_novel_vector = self.encoder.predict(most_novel_lattice[0][None])[0]
         self.archive.update({sorted_keys[-1]: most_novel_vector})
 
-        if self.current_gen % 5 == 0:
+        """if self.current_gen % 5 == 0:
             least = generate_lattice(0, self.population.population[sorted_keys[0]], self.config, noise_flag=False)[0]
             mid = generate_lattice(0, self.population.population[sorted_keys[int(len(sorted_keys) / 2)]], self.config, noise_flag=False)[0]
             novelty_voxel_plot([convert_to_integer(least[0]), convert_to_integer(mid[0]), convert_to_integer(most_novel_lattice[0])], self.current_gen + 1)
-            test_accuracy(self.encoder, self.decoder, [least[0], mid[0], most_novel_lattice[0]])
+            test_accuracy(self.encoder, self.decoder, [least[0], mid[0], most_novel_lattice[0]])"""
 
         for key in remove:
             del self.population.population[key]
@@ -192,7 +209,7 @@ def generate_lattice(genome_id, genome, config, noise_flag=True, plot=None):
 
     for (x, y, z) in value_range:
         lattice[x][y][z] = np.round(net.activate((x / lattice_dimensions[0], y / lattice_dimensions[0], z / lattice_dimensions[0]))[0])
-    feasible, lattice = apply_constraints(lattice)
+    feasible, lattice, metrics = apply_constraints(lattice)
     if noise_flag:
         noisy = add_noise(lattice)
     if plot is not None:
@@ -201,7 +218,7 @@ def generate_lattice(genome_id, genome, config, noise_flag=True, plot=None):
     lattice = to_categorical(lattice, num_classes=5)
     noisy = to_categorical(noisy, num_classes=5)
 
-    return {genome_id: np.asarray(lattice)}, np.asarray(noisy), feasible
+    return {genome_id: np.asarray(lattice)}, np.asarray(noisy), feasible, metrics
 
 
 def generate_lattices(genomes, config, noise_flag=True):
@@ -216,17 +233,18 @@ def generate_lattices(genomes, config, noise_flag=True):
     jobs = []
     lattices = []
     noisy = []
+    metrics = []
     for genome in genomes:
         jobs.append(pool.apply_async(generate_lattice, (0, genome, config, noise_flag)))
     for job in jobs:
-        lattice, noisy_lattice, valid = job.get()
+        lattice, noisy_lattice, valid, metrics = job.get()
         if valid:
             lattices.append(list(lattice.values())[0])
             if noise_flag:
                 noisy.append(noisy_lattice)
     pool.close()
     pool.join()
-    return noisy, lattices
+    return noisy, lattices, metrics
 
 
 def create_population_lattices(config, noise_flag=True):
@@ -240,7 +258,7 @@ def create_population_lattices(config, noise_flag=True):
     noisy = []
     while len(lattices) < best_fit_count:
         population = create_population(config, round((best_fit_count - len(lattices)) * 1.75))
-        noisy_batch, lattice_batch = generate_lattices(population.population.values(), config, noise_flag)
+        noisy_batch, lattice_batch, _ = generate_lattices(population.population.values(), config, noise_flag)
         lattices += lattice_batch
         print("New lattice batch generated, current population size:", len(lattices))
         if noise_flag:

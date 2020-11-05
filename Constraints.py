@@ -30,12 +30,13 @@ def apply_constraints(lattice):
     :return: Adjusted lattice resulting from constraint functions.
     """
     valid = False
+    metrics = []
     if np.sum(lattice) != 0 and np.sum(lattice) != lattice_dimensions[0] ** 3:
         valid, lattice = repair_lattice(lattice)
         if valid:
-            valid, lattice = analyse_lattice(lattice)
+            (valid, metrics), lattice = analyse_lattice(lattice)
         # change_to_ones(lattice)
-    return valid, lattice
+    return valid, lattice, metrics
 
 
 def repair_lattice(lattice):
@@ -64,10 +65,11 @@ def check_constraints(lattice):
     :param lattice:
     :return:
     """
-    """interior_count = 0
+    interior_count = 0
     roof_count = 0
     total_count = 0
     floor_count = 0
+
     for (x, y, z) in value_range:
         if lattice[x][y][z] > 0:
             total_count += 1
@@ -78,11 +80,15 @@ def check_constraints(lattice):
             elif lattice[x][y][z] == 1:
                 interior_count += 1
 
-    if interior_count / total_count < 0.5:
-        return False"""
-    """if floor_count / roof_count < 0.5:
-        return False"""
-    return True
+    total_voxel_ratio = total_count / lattice_dimensions[0] ** 3
+    interior_ratio = interior_count / total_count
+
+    try:
+        floor_to_ceiling = floor_count / roof_count
+    except ZeroDivisionError:
+        floor_to_ceiling = np.nan
+
+    return True, [interior_ratio, floor_to_ceiling, total_voxel_ratio]
 
 
 def iterative_flood(input_lattice):

@@ -1,7 +1,7 @@
 import numpy as np
 
 # System Parameters
-thread_count = 14
+thread_count = 10
 
 # Experiment Parameters
 averaged_runs = 10
@@ -18,9 +18,9 @@ validation_split = 0.2
 
 # NEAT parameters for initial building population generation
 initial_runs = 1
-best_fit_count = 500
+best_fit_count = 250
 
 # Parameters for evolutionary algorithm using latent vector space
-latent_generations = 26
+latent_generations = 1
 latent_mutation_rate = 0.1
 latent_variable_range = [-250, 250]
