@@ -2,7 +2,7 @@ import os
 import time
 import neat
 
-from Constraints import new_edge_detect
+from Constraints import new_edge_detect, change_to_ones
 from NeatGenerator import NeatGenerator, create_population_lattices
 from GeneticAlgorithm import GeneticAlgorithm
 from Autoencoder import auto_encoder_2d, auto_encoder_3d, load_model, create_auto_encoder, add_noise_parallel, \
@@ -40,6 +40,7 @@ if __name__ == '__main__':
 
     test = np.load("Most_Novel.npy")
     visualize(test)
+    change_to_ones(test)
     visualize(new_edge_detect(test))
 
     neat_generator = NeatGenerator(

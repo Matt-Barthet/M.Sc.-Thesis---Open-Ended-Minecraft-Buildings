@@ -55,8 +55,8 @@ def analyse_lattice(lattice):
     :return:
     """
     lattice = new_edge_detect(lattice)
-    lattice = locate_ceiling(lattice)
-    lattice = locate_floor(lattice)
+    # lattice = locate_ceiling(lattice)
+    # lattice = locate_floor(lattice)
     return check_constraints(lattice), lattice
 
 
@@ -220,24 +220,42 @@ def new_edge_detect(lattice):
     :return:
     """
     for x, y, z in value_range:
-        if lattice[x][y][z] == 1:
+        if lattice[x][y][z] != 0:
 
-            if x == 0 or y == 0 or z == 0:
-                lattice[x][y][z] = 2
+            if z == 0:
+                if lattice[x][y][z + 1] == 0:
+                    lattice[x][y][z] = 0
+                else:
+                    lattice[x][y][z] = 3
                 continue
+            elif z == lattice_dimensions[0] - 1:
+                lattice[x][y][z] = 4
+                continue
+            else:
+                if lattice[x][y][z + 1] == 0:
+                    lattice[x][y][z] = 4
+                    continue
+
+                if lattice[x][y][z - 1] == 0:
+                    if lattice[x][y][z + 1] == 0:
+                        lattice[x][y][z] = 0
+                    else:
+                        lattice[x][y][z] = 3
+
+
+            if x == 0 or y == 0:
+                lattice[x][y][z] = 2
 
             try:
+
                 if lattice[x + 1][y][z] == 0:
                     lattice[x][y][z] = 2
                 elif lattice[x - 1][y][z] == 0:
                     lattice[x][y][z] = 2
+
                 elif lattice[x][y + 1][z] == 0:
                     lattice[x][y][z] = 2
                 elif lattice[x][y - 1][z] == 0:
-                    lattice[x][y][z] = 2
-                elif lattice[x][y][z + 1] == 0:
-                    lattice[x][y][z] = 2
-                elif lattice[x][y][z - 1] == 0:
                     lattice[x][y][z] = 2
             except IndexError:
                 lattice[x][y][z] = 2
@@ -333,7 +351,8 @@ def change_to_ones(input_lattice):
     for i in range(0, input_lattice.shape[0]):
         for j in range(0, input_lattice.shape[1]):
             for k in range(0, input_lattice.shape[2]):
+                """# Set interior space to empty voxels
                 if input_lattice[i][j][k] == 1:
-                    input_lattice[i][j][k] = 0
-                elif input_lattice[i][j][k] != 0:
+                    input_lattice[i][j][k] = 0"""
+                if input_lattice[i][j][k] != 0:
                     input_lattice[i][j][k] = 1
