@@ -19,6 +19,7 @@ runs_per_phase = 100
 population_size = 200
 best_fit_count = 10
 generations_per_run = 50
+compressed_length = 256
 
 # Parameters for constrained novelty search in the NEAT module
 k_nearest_neighbors = 20

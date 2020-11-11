@@ -1,13 +1,10 @@
 import os
 import time
 import neat
-
-from Constraints import new_edge_detect, change_to_ones
 from NeatGenerator import NeatGenerator, create_population_lattices
 from GeneticAlgorithm import GeneticAlgorithm
-from Autoencoder import auto_encoder_2d, auto_encoder_3d, load_model, create_auto_encoder, add_noise_parallel, \
-    test_accuracy
-from Visualization import plot_statistics, auto_encoder_plot
+from Autoencoder import auto_encoder_3d, load_model, create_auto_encoder
+from Visualization import plot_statistics
 from Delenox_Config import *
 import tensorflow as tf
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -22,7 +19,6 @@ if __name__ == '__main__':
 
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
-    print(tf.test.is_gpu_available())
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
@@ -45,12 +41,10 @@ if __name__ == '__main__':
         generations=generations_per_run,
         num_workers=thread_count,
         k=k_nearest_neighbors,
-        compressed_length=256
+        compressed_length=compressed_length
     )
 
     population, neat_means, neat_means_std, neat_bests, neat_bests_std = neat_generator.run_neat()
-
-    np.save("./Novelty_Experiments/Neat_Experiment_No_Constraints.npy", np.asarray([neat_means, neat_means_std, neat_bests, neat_bests_std]))
 
     plot_statistics(
         generations=generations_per_run,
@@ -61,6 +55,8 @@ if __name__ == '__main__':
         names=["Neat"],
         averaged_runs=runs_per_phase
     )
+
+    # np.save("./Novelty_Experiments/Neat_Experiment_No_Constraints.npy", np.asarray([neat_means, neat_means_std, neat_bests, neat_bests_std]))
 
     """
     latent_solver_random = GeneticAlgorithm(

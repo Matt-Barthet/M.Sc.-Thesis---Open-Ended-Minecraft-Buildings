@@ -36,8 +36,6 @@ class NeatGenerator:
 
     def run_neat(self):
         """
-        TODO: Implement the Feasible-Infeasible split and evolve the infeasible population by minimizing the
-              euclidean distance to the feasible threshold.
         Executes one "exploration" phase of the Delenox pipeline.  A set number of independent evolutionary runs
         are completed and the top N most novel individuals are taken and inserted into a population.  At the of
         the phase we look at the distribution of individuals in the population according to numerous metrics and
@@ -145,8 +143,12 @@ class NeatGenerator:
         sorted_keys = [k for k, _ in sorted(fitness.items(), key=lambda item: item[1])]
         most_novel_genome = self.population.population[sorted_keys[-1]]
         most_novel_lattice = generate_lattice(0, most_novel_genome, self.config, noise_flag=False)[0]
-        most_novel_vector = self.encoder.predict(most_novel_lattice[0][None])[0]
-        self.archive.update({sorted_keys[-1]: most_novel_vector})
+
+        for individual in range(add_to_archive):
+            genome = self.population.population[sorted_keys[individual]]
+            lattice = generate_lattice(0, genome, self.config, noise_flag=False)[0]
+            vector = self.encoder.predict(lattice[0][None])[0]
+            self.archive.update({sorted_keys[-individual]: vector})
 
         if self.current_gen % 10 == 0 or self.current_gen == generations_per_run:
             least = generate_lattice(0, self.population.population[sorted_keys[0]], self.config, noise_flag=False)[0]
