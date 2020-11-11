@@ -24,9 +24,9 @@ class NeatGenerator:
         self.compressed_population = {}
         self.neighbors = k
         self.num_workers = num_workers
-        self.means_list = [[] for _ in range(latent_generations)]
-        self.std_list = [[] for _ in range(latent_generations)]
-        self.bests_list = [[] for _ in range(latent_generations)]
+        self.means_list = [[] for _ in range(generations_per_run)]
+        self.std_list = [[] for _ in range(generations_per_run)]
+        self.bests_list = [[] for _ in range(generations_per_run)]
         self.compressed_length = compressed_length
         self.archive = {}
         self.current_gen = 0
@@ -38,14 +38,18 @@ class NeatGenerator:
         """
         TODO: Implement the Feasible-Infeasible split and evolve the infeasible population by minimizing the
               euclidean distance to the feasible threshold.
-        :return:
+        Executes one "exploration" phase of the Delenox pipeline.  A set number of independent evolutionary runs
+        are completed and the top N most novel individuals are taken and inserted into a population.  At the of
+        the phase we look at the distribution of individuals in the population according to numerous metrics and
+        statistics regarding the evolution of the populations such as the speciation, novelty scores etc.
+        :return: the generated population of lattices and statistics variables from the runs of the phase.
         """
 
-        for run in range(averaged_runs):
+        for run in range(runs_per_phase):
             
             print("\nStarting Run: ", run + 1)
             self.current_gen = 0
-            self.config.__setattr__("pop_size", best_fit_count)
+            self.config.__setattr__("pop_size", population_size)
             self.population = neat.Population(self.config)
             self.population.add_reporter(neat.StdOutReporter(True))
             self.population.add_reporter(neat.StatisticsReporter())
@@ -53,19 +57,22 @@ class NeatGenerator:
             means = self.population.reporters.reporters[1].get_fitness_mean()
             bests = self.population.reporters.reporters[1].get_fitness_stat(max)
 
-            for generation in range(latent_generations):
+            for generation in range(generations_per_run):
                 self.means_list[generation].append(means[generation])
                 self.bests_list[generation].append(bests[generation])
 
-        expressive_graph(self.interior_space_ratios, self.floor_to_ceiling_ratios, "No Constraints", "Interior Volume Ratio", "Floor to Ceiling Ratio")
-        expressive_graph(self.interior_space_ratios, self.building_to_lattice_ratios, "No Constraints", "Interior Volume Ratio", "Total Volume Ratio")
+        plt.figure()
+        plt.scatter(self.interior_space_ratios, self.building_to_lattice_ratios, s=50)
+        plt.show()
+        # expressive_graph(self.interior_space_ratios, self.floor_to_ceiling_ratios, "No Constraints", "Interior Volume Ratio", "Floor to Ceiling Ratio")
+        # expressive_graph(self.interior_space_ratios, self.building_to_lattice_ratios, "No Constraints", "Interior Volume Ratio", "Total Volume Ratio")
 
         means = []
         means_confidence = []
         bests = []
         bests_confidence = []
 
-        for generation in range(latent_generations):
+        for generation in range(generations_per_run):
             means.append(np.mean(self.means_list[generation]))
             means_confidence.append(np.std(self.means_list[generation]))
             bests.append(np.mean(self.bests_list[generation]))
@@ -141,11 +148,11 @@ class NeatGenerator:
         most_novel_vector = self.encoder.predict(most_novel_lattice[0][None])[0]
         self.archive.update({sorted_keys[-1]: most_novel_vector})
 
-        """if self.current_gen % 5 == 0:
+        if self.current_gen % 10 == 0 or self.current_gen == generations_per_run:
             least = generate_lattice(0, self.population.population[sorted_keys[0]], self.config, noise_flag=False)[0]
             mid = generate_lattice(0, self.population.population[sorted_keys[int(len(sorted_keys) / 2)]], self.config, noise_flag=False)[0]
             novelty_voxel_plot([convert_to_integer(least[0]), convert_to_integer(mid[0]), convert_to_integer(most_novel_lattice[0])], self.current_gen + 1)
-            test_accuracy(self.encoder, self.decoder, [least[0], mid[0], most_novel_lattice[0]])"""
+            test_accuracy(self.encoder, self.decoder, [least[0], mid[0], most_novel_lattice[0]])
 
         for key in remove:
             del self.population.population[key]
@@ -154,35 +161,23 @@ class NeatGenerator:
 
 def novelty_search(genome_id, compressed_population, k, compressed_length, archive):
     """
-
-    :param genome_id:
-    :param compressed_population:
-    :param k:
-    :param compressed_length:
-    :param archive:
-    :return:
+    Computes the novelty score for the given genome with respect to the current population and
+    an archive of past novel individuals for this run. The score is the average euclidean distance
+    to the nearest K neighbors (taken from the population and archive).
+    :param genome_id: the ID of the genome being assessed.
+    :param compressed_population: the population of latent vectors to compare to.
+    :param k: the number of nearest neighbors to average over when calculating the final score.
+    :param compressed_length: the length of the compressed representation.
+    :param archive: the archive of past novel individuals for this run.
+    :return: the novelty score for this genome.
     """
     distances = []
-    for neighbour in list(compressed_population.values()):
+    for neighbour in list(compressed_population.values()) + list(archive.values()):
         distance = 0
         for element in range(compressed_length):
             distance += np.square(compressed_population[genome_id][element] - neighbour[element])
         distances.append(np.sqrt(distance))
-    distances.sort()
-    k_average = np.round(np.average(distances[:k]), 2)
-
-    if len(archive) == 0:
-        return k_average
-
-    distances.clear()
-    for neighbour in list(archive.values()):
-        distance = 0
-        for element in range(compressed_length):
-            distance += np.square(compressed_population[genome_id][element] - neighbour[element])
-        distances.append(np.sqrt(distance))
-    archive_average = np.round(np.average(distances), 2)
-
-    return np.round(np.average([k_average, archive_average]), 2)
+    return np.round(np.average(distances[:k]), 2)
 
 
 def generate_lattice(genome_id, genome, config, noise_flag=True, plot=None):
@@ -248,8 +243,8 @@ def create_population_lattices(config, noise_flag=True):
     """
     lattices = []
     noisy = []
-    while len(lattices) < best_fit_count:
-        population = create_population(config, round((best_fit_count - len(lattices)) * 1.75))
+    while len(lattices) < population_size:
+        population = create_population(config, round((population_size - len(lattices)) * 1.75))
         noisy_batch, lattice_batch, _ = generate_lattices(population.population.values(), config, noise_flag)
         lattices += lattice_batch
         print("New lattice batch generated, current population size:", len(lattices))
@@ -257,10 +252,10 @@ def create_population_lattices(config, noise_flag=True):
             noisy += noisy_batch
     # np.save("Training_Carved.npy", np.asarray(lattices[:best_fit_count]))
     # np.save("Training_Carved_Noisy.npy", np.asarray(noisy[:best_fit_count]))
-    return np.asarray(lattices[:best_fit_count]), noisy[:best_fit_count]
+    return np.asarray(lattices[:population_size]), noisy[:population_size]
 
 
-def create_population(config, pop_size=best_fit_count):
+def create_population(config, pop_size=population_size):
     """
     Generates a population of CPPN genomes according to the given CPPN-NEAT config file and population size.
     :param config: CPPN-NEAT config file specifying the parameters for the genomes.

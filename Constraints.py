@@ -2,8 +2,6 @@ from multiprocessing import Pool
 from Delenox_Config import lattice_dimensions, thread_count, value_range
 import numpy as np
 
-from Visualization import visualize
-
 
 def apply_constraints_parallel(input_lattices):
     """
@@ -80,13 +78,12 @@ def check_constraints(lattice):
             elif lattice[x][y][z] == 1:
                 interior_count += 1
 
-    total_voxel_ratio = total_count / lattice_dimensions[0] ** 3
-    interior_ratio = interior_count / total_count
-
     try:
+        total_voxel_ratio = total_count / lattice_dimensions[0] ** 3
+        interior_ratio = interior_count / total_count
         floor_to_ceiling = floor_count / roof_count
     except ZeroDivisionError:
-        floor_to_ceiling = np.nan
+        return False, []
 
     return True, [interior_ratio, floor_to_ceiling, total_voxel_ratio]
 

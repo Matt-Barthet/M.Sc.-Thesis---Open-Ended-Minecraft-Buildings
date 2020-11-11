@@ -1,5 +1,5 @@
 from geneal.utils.helpers import get_elapsed_time
-from Delenox_Config import latent_generations
+from Delenox_Config import generations_per_run
 from geneal.genetic_algorithms.genetic_algorithm_base import GenAlgSolver
 import numpy as np
 import multiprocessing
@@ -17,9 +17,9 @@ class GeneticAlgorithm(GenAlgSolver):
         self.neighbors = k
         self.new_fitness = []
         self.new_population = []
-        self.means = [[] for _ in range(latent_generations)]
-        self.std = [[] for _ in range(latent_generations)]
-        self.bests = [[] for _ in range(latent_generations)]
+        self.means = [[] for _ in range(generations_per_run)]
+        self.std = [[] for _ in range(generations_per_run)]
+        self.bests = [[] for _ in range(generations_per_run)]
 
     def solve(self):
         for run in range(self.average_runs):

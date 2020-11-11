@@ -141,10 +141,13 @@ def get_color_map(lattice):
     return color
 
 
-def visualize(matrix_3d):
-    color = get_color_map(matrix_3d)
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.gca(projection='3d')
-    # ax.set_aspect('equal')
-    ax.voxels(matrix_3d, facecolors=color, edgecolor="k")
-    plt.show()
+def cluster_analysis(metrics, title, axis_labels):
+    """
+    TODO: implement code for clustering analysis according to the metrics given (should adapt from 2D to 3D according to what's given).
+
+    :param metrics:
+    :param title:
+    :param axis_labels:
+    :return:
+    """
+    return
