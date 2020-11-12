@@ -4,18 +4,30 @@ import numpy as np
 from keras.layers import Dense, Flatten, Reshape, Input, Conv2D, Conv2DTranspose, Conv3D, MaxPooling2D, UpSampling2D, \
                          MaxPooling3D, Conv3DTranspose, UpSampling3D
 from keras.models import Sequential, Model
+from sklearn.model_selection import train_test_split
 from tensorflow.python.keras.models import model_from_json
 from Delenox_Config import lattice_dimensions, batch_size, no_epochs, thread_count, value_range
-from Visualization import auto_encoder_plot
+from Visualization import auto_encoder_plot, visualize_training
 
 
-def create_auto_encoder(compressed_length, model_type):
+def update_auto_encoder(ae, population):
+    population_noisy = add_noise_parallel(population)
+    training_noisy, test_noisy, training, test = train_test_split(population_noisy, population, test_size=0.2,
+                                                                  random_state=29)
+    history = ae.fit(x=training_noisy, y=training, epochs=no_epochs,
+                     batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True)
+    visualize_training(history)
+    return ae
+
+
+def create_auto_encoder(compressed_length, model_type, population=None):
     """
     Function to create and train a de-noising auto-encoder to compress 3D lattices
     into a 1D latent vector representation.
 
     :param compressed_length: length of the compressed representation
     :param model_type: type of auto-encoder to create (2D vs 3D)
+    :param population: population of lattices to train the model on (given when performing Delenox)
     :return: the generated encoder and decoder models
     """
 
@@ -29,26 +41,24 @@ def create_auto_encoder(compressed_length, model_type):
     # Compiling the AE and fitting it using the noisy population as input and the original population as the target
     ae.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['categorical_accuracy', 'binary_accuracy'])
 
-    test = np.load("Training_Materials.npy")
-    training = np.load("Test_Materials.npy")
-    training_noisy = np.load("Test_Materials_Noisy.npy")
-    test_noisy = np.load("Training_Materials_noisy.npy")
+    # If the function is given a population of lattices, create a set of noisy variants and partition into train-test.
+    if population is not None:
+        population_noisy = add_noise_parallel(population)
+        training_noisy, test_noisy, training, test = train_test_split(population_noisy, population, test_size=0.2, random_state=29)
+    else:
+        test = np.load("Training_Materials.npy")
+        training = np.load("Test_Materials.npy")
+        training_noisy = np.load("Test_Materials_Noisy.npy")
+        test_noisy = np.load("Training_Materials_noisy.npy")
 
     history = ae.fit(x=training_noisy, y=training, epochs=no_epochs,
                      batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True)
-
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
-    plt.title('Model Loss')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'validation'], loc='upper left')
-    plt.show()
+    visualize_training(history)
 
     save_model(encoder_model, "material_encoder_256")
     save_model(decoder_model, "material_decoder_256")
 
-    return encoder_model, decoder_model
+    return ae, encoder_model, decoder_model
 
 
 def auto_encoder_3d(compressed_length):
@@ -215,7 +225,7 @@ def compress_lattices(lattices, encoder):
     return np.asarray(compressed)
 
 
-def add_noise_parallel(lattices, name):
+def add_noise_parallel(lattices, name=None):
     """
     Multi-process approach to adding noise to a population of lattices, outputting the
     results to a file.
@@ -233,8 +243,8 @@ def add_noise_parallel(lattices, name):
         noisy_lattices.append(job.get())
     pool.close()
     pool.join()
-
-    np.save(name + "_Noisy.npy", np.asarray(noisy_lattices))
+    if name is not None:
+        np.save(name + "_Noisy.npy", np.asarray(noisy_lattices))
     return np.asarray(noisy_lattices)
 
 
