@@ -58,6 +58,10 @@ def analyse_lattice(lattice):
     return check_constraints(lattice), lattice
 
 
+class InfeasibleError(Exception):
+    pass
+
+
 def check_constraints(lattice):
     """
     :param lattice:
@@ -65,12 +69,15 @@ def check_constraints(lattice):
     """
     interior_count = 0
     roof_count = 0
-    total_count = 0
+    surfaces = 0
     floor_count = 0
+    total_count = 0
 
     for (x, y, z) in value_range:
         if lattice[x][y][z] > 0:
             total_count += 1
+            if lattice[x][y][z] != 1:
+                surfaces += 1
             if lattice[x][y][z] == 4:
                 roof_count += 1
             elif lattice[x][y][z] == 3:
@@ -79,13 +86,17 @@ def check_constraints(lattice):
                 interior_count += 1
 
     try:
-        total_voxel_ratio = total_count / lattice_dimensions[0] ** 3
+        surface_area_ratio = surfaces / lattice_dimensions[0] ** 3
         interior_ratio = interior_count / total_count
         floor_to_ceiling = floor_count / roof_count
-    except ZeroDivisionError:
+
+        if surface_area_ratio < 0.25 or interior_ratio < 0.5:
+            raise InfeasibleError
+
+    except (ZeroDivisionError, InfeasibleError):
         return False, []
 
-    return True, [interior_ratio, floor_to_ceiling, total_voxel_ratio]
+    return True, [interior_ratio, floor_to_ceiling, surface_area_ratio]
 
 
 def iterative_flood(input_lattice):

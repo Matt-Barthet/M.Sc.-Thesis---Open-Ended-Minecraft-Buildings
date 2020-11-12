@@ -8,6 +8,38 @@ import time
 import neat
 
 
+def cluster_analysis(population, metrics, title, axis_labels, config):
+    """
+
+    :param lattices:
+    :param metrics:
+    :param title:
+    :param axis_labels:
+    :return:
+    """
+    clustering = KMedoids(n_clusters=5)
+    data = np.asarray(list(zip(list(metrics[0].values()), list(metrics[1].values()))))
+    data_dict = {k: [d[k] for d in metrics] for k in metrics[0].keys()}
+    clustering.fit(data)
+    clusters = clustering.predict(data)
+    medoids = clustering.cluster_centers_
+
+    for medoid in medoids:
+        for genome, metrics in data_dict.items():
+            if list(medoid) == list(metrics):
+                medoid_lattice = generate_lattice(0, population[genome], config, False)[0][0]
+                voxel_plot(convert_to_integer(medoid_lattice), "Medoid at " + str(list(medoid)))
+                break
+
+    plt.figure()
+    plt.scatter(data[:, 0], data[:, 1], c=clusters, s=50, cmap='viridis')
+    plt.scatter(medoids[:, 0], medoids[:, 1], c='black', s=200, alpha=0.5)
+    plt.xlabel(axis_labels[0])
+    plt.ylabel(axis_labels[1])
+    plt.title(title)
+    plt.show()
+
+
 class NeatGenerator:
     """
     NEAT module of the Delenox pipeline, responsible for creating and evolving CPPN's which are
@@ -30,9 +62,10 @@ class NeatGenerator:
         self.compressed_length = compressed_length
         self.archive = {}
         self.current_gen = 0
-        self.interior_space_ratios = []
-        self.floor_to_ceiling_ratios = []
-        self.building_to_lattice_ratios = []
+        self.interior_space_ratios = {}
+        self.floor_to_ceiling_ratios = {}
+        self.building_to_lattice_ratios = {}
+        self.phase_best_fit = []
 
     def run_neat(self):
         """
@@ -44,9 +77,9 @@ class NeatGenerator:
         """
 
         for run in range(runs_per_phase):
-            
             print("\nStarting Run: ", run + 1)
             self.current_gen = 0
+            self.archive.clear()
             self.config.__setattr__("pop_size", population_size)
             self.population = neat.Population(self.config)
             self.population.add_reporter(neat.StdOutReporter(True))
@@ -59,9 +92,7 @@ class NeatGenerator:
                 self.means_list[generation].append(means[generation])
                 self.bests_list[generation].append(bests[generation])
 
-        plt.figure()
-        plt.scatter(self.interior_space_ratios, self.building_to_lattice_ratios, s=50)
-        plt.show()
+            print(np.asarray(self.phase_best_fit).shape)
         # expressive_graph(self.interior_space_ratios, self.floor_to_ceiling_ratios, "No Constraints", "Interior Volume Ratio", "Floor to Ceiling Ratio")
         # expressive_graph(self.interior_space_ratios, self.building_to_lattice_ratios, "No Constraints", "Interior Volume Ratio", "Total Volume Ratio")
 
@@ -76,7 +107,7 @@ class NeatGenerator:
             bests.append(np.mean(self.bests_list[generation]))
             bests_confidence.append(np.std(self.bests_list[generation]))
 
-        return self.population.population, means, means_confidence, bests, bests_confidence
+        return np.asarray(self.phase_best_fit), means, means_confidence, bests, bests_confidence
 
     def novelty_search_parallel(self, genomes, config):
         """
@@ -92,6 +123,7 @@ class NeatGenerator:
         remove = []
         pool = Pool(thread_count)
         jobs = []
+
         self.compressed_population.clear()
         self.interior_space_ratios.clear()
         self.floor_to_ceiling_ratios.clear()
@@ -108,9 +140,9 @@ class NeatGenerator:
                 genome.fitness = 0
             else:
                 lattices.update(key_pair)
-                self.interior_space_ratios.append(metrics[0])
-                self.floor_to_ceiling_ratios.append(metrics[1])
-                self.building_to_lattice_ratios.append(metrics[2])
+                self.interior_space_ratios.update({genome_id: metrics[0]})
+                self.floor_to_ceiling_ratios.update({genome_id: metrics[1]})
+                self.building_to_lattice_ratios.update({genome_id: metrics[2]})
 
         print("Done! (", np.round(time.time() - start, 2), "seconds ).")
 
@@ -141,20 +173,27 @@ class NeatGenerator:
         fitness = {genome_id: fitness.fitness for genome_id, fitness in self.population.population.items() if
                    fitness.fitness > 0}
         sorted_keys = [k for k, _ in sorted(fitness.items(), key=lambda item: item[1])]
-        most_novel_genome = self.population.population[sorted_keys[-1]]
-        most_novel_lattice = generate_lattice(0, most_novel_genome, self.config, noise_flag=False)[0]
 
         for individual in range(add_to_archive):
-            genome = self.population.population[sorted_keys[individual]]
-            lattice = generate_lattice(0, genome, self.config, noise_flag=False)[0]
-            vector = self.encoder.predict(lattice[0][None])[0]
+            lattice = lattices[sorted_keys[-individual]]
+            vector = self.encoder.predict(lattice[None])[0]
             self.archive.update({sorted_keys[-individual]: vector})
 
-        if self.current_gen % 10 == 0 or self.current_gen == generations_per_run:
+        if self.current_gen + 1 == generations_per_run:
+            cluster_analysis(self.population.population, [self.interior_space_ratios, self.building_to_lattice_ratios],
+                             "K-Medoids (K=5)", ['Interior Volume', 'Total Volume'], self.config)
+
+            for individual in range(best_fit_count):
+                lattice = lattices[sorted_keys[-individual]]
+                self.phase_best_fit.append(lattice)
+
+        """if self.current_gen % 10 == 0 or self.current_gen == generations_per_run:
+            most_novel_genome = self.population.population[sorted_keys[-1]]
+            most_novel_lattice = generate_lattice(0, most_novel_genome, self.config, noise_flag=False)[0]
             least = generate_lattice(0, self.population.population[sorted_keys[0]], self.config, noise_flag=False)[0]
             mid = generate_lattice(0, self.population.population[sorted_keys[int(len(sorted_keys) / 2)]], self.config, noise_flag=False)[0]
             novelty_voxel_plot([convert_to_integer(least[0]), convert_to_integer(mid[0]), convert_to_integer(most_novel_lattice[0])], self.current_gen + 1)
-            test_accuracy(self.encoder, self.decoder, [least[0], mid[0], most_novel_lattice[0]])
+            test_accuracy(self.encoder, self.decoder, [least[0], mid[0], most_novel_lattice[0]])"""
 
         for key in remove:
             del self.population.population[key]

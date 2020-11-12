@@ -1,7 +1,7 @@
 import os
 import time
 import neat
-from NeatGenerator import NeatGenerator, create_population_lattices
+from NeatGenerator import NeatGenerator
 from GeneticAlgorithm import GeneticAlgorithm
 from Autoencoder import auto_encoder_3d, load_model, create_auto_encoder, update_auto_encoder
 from Visualization import plot_statistics
@@ -64,7 +64,6 @@ if __name__ == '__main__':
         # Transformation phase: create and train a new autoencoder based on the previous exploration phase
         # ae, encoder, decoder = create_auto_encoder(256, auto_encoder_3d, list(population.values()))
         # ae, = update_auto_encoder(ae, list(population.values()))
-
 
     # np.save("./Novelty_Experiments/Neat_Experiment_No_Constraints.npy", np.asarray([neat_means, neat_means_std, neat_bests, neat_bests_std]))
 

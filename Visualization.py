@@ -1,7 +1,8 @@
 import time
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn_extra.cluster import KMediods
+from sklearn_extra.cluster import KMedoids
+
 
 def plot_statistics(generations, bests, bests_confidence, means, means_confidence, names, averaged_runs, title=None):
     generations = np.arange(1, generations + 1)
@@ -152,17 +153,3 @@ def visualize_training(history):
     plt.xlabel('epoch')
     plt.legend(['train', 'validation'], loc='upper left')
     plt.show()
-
-
-def cluster_analysis(metrics, title, axis_labels):
-    """
-    TODO: implement code for clustering analysis according to the metrics given (should adapt from 2D to 3D according to what's given).
-
-    :param metrics:
-    :param title:
-    :param axis_labels:
-    :return:
-    """
-    KMediods(n)
-
-    return

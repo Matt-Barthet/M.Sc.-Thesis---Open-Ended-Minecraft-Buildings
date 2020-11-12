@@ -1,7 +1,7 @@
 import numpy as np
 
 # General Parameters
-thread_count = 11
+thread_count = 16
 number_of_phases = 5
 
 # Parameters for input space of un/compressed buildings
@@ -19,12 +19,13 @@ accuracy_metrics = ['categorical_accuracy', 'binary_accuracy']
 runs_per_phase = 10
 population_size = 200
 best_fit_count = 100
-generations_per_run = 50
+generations_per_run = 20
 compressed_length = 256
 
 # Parameters for constrained novelty search in the NEAT module
 k_nearest_neighbors = 20
 add_to_archive = 5
+compressed_length = 256
 
 # Parameters for evolutionary algorithm using latent vector space
 latent_mutation_rate = 0.1
