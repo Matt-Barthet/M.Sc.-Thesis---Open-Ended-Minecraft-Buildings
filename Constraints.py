@@ -3,6 +3,9 @@ from Delenox_Config import lattice_dimensions, thread_count, value_range
 import numpy as np
 
 
+materials = {'External_Space': 0, 'Interior_Space': 1, 'Wall': 2, 'Floor': 3, 'Roof': 4}
+
+
 def apply_constraints_parallel(input_lattices):
     """
     :param input_lattices:
@@ -60,6 +63,82 @@ def analyse_lattice(lattice):
 
 class InfeasibleError(Exception):
     pass
+
+
+def footprint_ratios(lattice):
+    top_half = 0
+    bottom_half = 0
+    left_half = 0
+    right_half = 0
+    near_half = 0
+    far_half = 0
+    middle_x = 0
+    outside_x = 0
+    middle_y = 0
+    outside_y = 0
+    middle_z = 0
+    outside_z = 0
+    for (x, y, z) in value_range:
+        if lattice[x][y][z] > 1:
+            if lattice_dimensions[0] / 4 < x < 2 * lattice_dimensions[0] / 4:
+                middle_x += 1
+            else:
+                outside_x += 1
+
+            if lattice_dimensions[1] / 4 < y < 2 * lattice_dimensions[1] / 4:
+                middle_y += 1
+            else:
+                outside_y += 1
+
+            if lattice_dimensions[2] / 4 < z < 2 * lattice_dimensions[2] / 4:
+                middle_z += 1
+            else:
+                outside_z += 1
+
+            if x < lattice_dimensions[0] / 2:
+                left_half += 1
+            else:
+                right_half += 1
+            if y < lattice_dimensions[1] / 2:
+                bottom_half += 1
+            else:
+                top_half += 1
+            if z < lattice_dimensions[2] / 2:
+                near_half += 1
+            else:
+                far_half += 1
+
+
+    return [left_half / right_half, top_half / bottom_half, near_half / far_half, middle_x / outside_x, middle_y / outside_y, middle_z / outside_z]
+
+
+def height_symmetry(lattice):
+    symmetry_count = 0
+    for (x, y, z) in list(zip(range(lattice_dimensions[0]), range(lattice_dimensions[0]), range(lattice_dimensions[0]/2))):
+        if lattice[x][y][z] == lattice[x][y][lattice_dimensions[2] + z]:
+            symmetry_count += 1
+    return symmetry_count
+
+def width_symmetry(lattice):
+    symmetry_count = 0
+    for (x, y, z) in list(zip(range(lattice_dimensions[0]/2), range(lattice_dimensions[0]), range(lattice_dimensions[0]))):
+        if lattice[x][y][z] == lattice[lattice_dimensions[0] + x][y][z]:
+            symmetry_count += 1
+    return symmetry_count
+
+def depth_symmetry(lattice):
+    symmetry_count = 0
+    for (x, y, z) in list(zip(range(lattice_dimensions[0]), range(lattice_dimensions[0]/2), range(lattice_dimensions[0]))):
+        if lattice[x][y][z] == lattice[ x][lattice_dimensions[0] + y][z]:
+            symmetry_count += 1
+    return symmetry_count
+
+def middle_versus_remaining(lattice):
+    symmetry_count = 0
+    for (x, y, z) in list(zip(range(lattice_dimensions[0]), range(lattice_dimensions[0]/2), range(lattice_dimensions[0]))):
+        if lattice[x][y][z] == lattice[ x][lattice_dimensions[0] + y][z]:
+            symmetry_count += 1
+    return symmetry_count
 
 
 def check_constraints(lattice):
@@ -193,34 +272,6 @@ def keep_largest_structure(visited, label):
     return visited
 
 
-def locate_floor(input_lattice):
-    """
-    Filter to locate the floor plan of a given lattice, where any voxel is enabled on the XY plane (Z = 0).
-    :param input_lattice: input lattice with floating voxels removed.
-    :return: Adjusted lattice with floor plan voxel ID's set to 3.
-    """
-    for x in range(0, input_lattice.shape[0]):
-        for y in range(0, input_lattice.shape[1]):
-            if input_lattice[x][y][0] != 0:
-                input_lattice[x][y][0] = 3
-    return input_lattice
-
-
-def locate_ceiling(input_lattice):
-    """
-
-    :param input_lattice:
-    :return:
-    """
-    for i in range(0, input_lattice.shape[0]):
-        for j in range(0, input_lattice.shape[1]):
-            for k in range(input_lattice.shape[2]-1, -1, -1):
-                if input_lattice[i][j][k] != 0:
-                    input_lattice[i][j][k] = 4
-                    break
-    return input_lattice
-
-
 def new_edge_detect(lattice):
     """
 
@@ -234,39 +285,35 @@ def new_edge_detect(lattice):
                 if lattice[x][y][z + 1] == 0:
                     lattice[x][y][z] = 0
                 else:
-                    lattice[x][y][z] = 3
+                    lattice[x][y][z] = materials['Floor']
                 continue
             elif z == lattice_dimensions[0] - 1:
-                lattice[x][y][z] = 4
+                lattice[x][y][z] = materials['Roof']
                 continue
             else:
                 if lattice[x][y][z + 1] == 0:
-                    lattice[x][y][z] = 4
+                    lattice[x][y][z] = materials['Roof']
                     continue
 
                 if lattice[x][y][z - 1] == 0:
                     if lattice[x][y][z + 1] == 0:
-                        lattice[x][y][z] = 0
+                        lattice[x][y][z] = materials['External_Space']
                     else:
-                        lattice[x][y][z] = 3
-
+                        lattice[x][y][z] = materials['Floor']
 
             if x == 0 or y == 0:
-                lattice[x][y][z] = 2
-
+                lattice[x][y][z] = materials['Wall']
             try:
-
                 if lattice[x + 1][y][z] == 0:
-                    lattice[x][y][z] = 2
+                    lattice[x][y][z] = materials['Wall']
                 elif lattice[x - 1][y][z] == 0:
-                    lattice[x][y][z] = 2
-
+                    lattice[x][y][z] = materials['Wall']
                 elif lattice[x][y + 1][z] == 0:
-                    lattice[x][y][z] = 2
+                    lattice[x][y][z] = materials['Wall']
                 elif lattice[x][y - 1][z] == 0:
-                    lattice[x][y][z] = 2
+                    lattice[x][y][z] = materials['Wall']
             except IndexError:
-                lattice[x][y][z] = 2
+                lattice[x][y][z] = materials['Wall']
 
     return lattice
 
