@@ -1,5 +1,4 @@
 from multiprocessing import Pool
-import matplotlib.pyplot as plt
 import numpy as np
 from keras.layers import Dense, Flatten, Reshape, Input, Conv2D, Conv2DTranspose, Conv3D, MaxPooling2D, UpSampling2D, \
                          MaxPooling3D, Conv3DTranspose, UpSampling3D

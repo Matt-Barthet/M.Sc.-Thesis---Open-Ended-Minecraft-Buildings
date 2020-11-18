@@ -1,7 +1,7 @@
 import numpy as np
 
 # General Parameters
-thread_count = 16
+thread_count = 1
 number_of_phases = 5
 
 # Parameters for input space of un/compressed buildings

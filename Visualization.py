@@ -1,7 +1,6 @@
 import time
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn_extra.cluster import KMedoids
 
 
 def plot_statistics(generations, bests, bests_confidence, means, means_confidence, names, averaged_runs, title=None):

@@ -1,8 +1,6 @@
 import os
-import time
 import neat
 from NeatGenerator import NeatGenerator
-from GeneticAlgorithm import GeneticAlgorithm
 from Autoencoder import auto_encoder_3d, load_model, create_auto_encoder, update_auto_encoder
 from Visualization import plot_statistics
 from Delenox_Config import *
@@ -16,7 +14,6 @@ def sinc(x):
 
 
 if __name__ == '__main__':
-
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
@@ -43,7 +40,7 @@ if __name__ == '__main__':
             generations=generations_per_run,
             num_workers=thread_count,
             k=k_nearest_neighbors,
-            compressed_length=compressed_length
+            latent_size=compressed_length
         )
 
         # Execute the exploration phase and get the resulting population of novel individuals and statistics.

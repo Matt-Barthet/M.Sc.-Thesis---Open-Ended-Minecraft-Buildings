@@ -1,4 +1,5 @@
 from multiprocessing.pool import Pool
+from sklearn_extra.cluster import KMedoids
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Autoencoder import add_noise, test_accuracy, convert_to_integer
 from Delenox_Config import *
@@ -8,38 +9,6 @@ import time
 import neat
 
 
-def cluster_analysis(population, metrics, title, axis_labels, config):
-    """
-
-    :param lattices:
-    :param metrics:
-    :param title:
-    :param axis_labels:
-    :return:
-    """
-    clustering = KMedoids(n_clusters=5)
-    data = np.asarray(list(zip(list(metrics[0].values()), list(metrics[1].values()))))
-    data_dict = {k: [d[k] for d in metrics] for k in metrics[0].keys()}
-    clustering.fit(data)
-    clusters = clustering.predict(data)
-    medoids = clustering.cluster_centers_
-
-    for medoid in medoids:
-        for genome, metrics in data_dict.items():
-            if list(medoid) == list(metrics):
-                medoid_lattice = generate_lattice(0, population[genome], config, False)[0][0]
-                voxel_plot(convert_to_integer(medoid_lattice), "Medoid at " + str(list(medoid)))
-                break
-
-    plt.figure()
-    plt.scatter(data[:, 0], data[:, 1], c=clusters, s=50, cmap='viridis')
-    plt.scatter(medoids[:, 0], medoids[:, 1], c='black', s=200, alpha=0.5)
-    plt.xlabel(axis_labels[0])
-    plt.ylabel(axis_labels[1])
-    plt.title(title)
-    plt.show()
-
-
 class NeatGenerator:
     """
     NEAT module of the Delenox pipeline, responsible for creating and evolving CPPN's which are
@@ -47,7 +16,7 @@ class NeatGenerator:
     novelty search as the heuristic, which computes the average Euclidean distance to the k-nearest
     neighbors as well as to an archive of unique novel individuals from past generations.
     """
-    def __init__(self, encoder, decoder, config, generations, k, num_workers, compressed_length):
+    def __init__(self, encoder, decoder, config, generations, k, num_workers, latent_size):
         self.encoder = encoder
         self.decoder = decoder
         self.config = config
@@ -59,7 +28,7 @@ class NeatGenerator:
         self.means_list = [[] for _ in range(generations_per_run)]
         self.std_list = [[] for _ in range(generations_per_run)]
         self.bests_list = [[] for _ in range(generations_per_run)]
-        self.compressed_length = compressed_length
+        self.compressed_length = latent_size
         self.archive = {}
         self.current_gen = 0
         self.interior_space_ratios = {}
@@ -73,9 +42,9 @@ class NeatGenerator:
         are completed and the top N most novel individuals are taken and inserted into a population.  At the of
         the phase we look at the distribution of individuals in the population according to numerous metrics and
         statistics regarding the evolution of the populations such as the speciation, novelty scores etc.
+
         :return: the generated population of lattices and statistics variables from the runs of the phase.
         """
-
         for run in range(runs_per_phase):
             print("\nStarting Run: ", run + 1)
             self.current_gen = 0
@@ -92,7 +61,6 @@ class NeatGenerator:
                 self.means_list[generation].append(means[generation])
                 self.bests_list[generation].append(bests[generation])
 
-            print(np.asarray(self.phase_best_fit).shape)
         # expressive_graph(self.interior_space_ratios, self.floor_to_ceiling_ratios, "No Constraints", "Interior Volume Ratio", "Floor to Ceiling Ratio")
         # expressive_graph(self.interior_space_ratios, self.building_to_lattice_ratios, "No Constraints", "Interior Volume Ratio", "Total Volume Ratio")
 
@@ -205,6 +173,7 @@ def novelty_search(genome_id, compressed_population, k, compressed_length, archi
     Computes the novelty score for the given genome with respect to the current population and
     an archive of past novel individuals for this run. The score is the average euclidean distance
     to the nearest K neighbors (taken from the population and archive).
+
     :param genome_id: the ID of the genome being assessed.
     :param compressed_population: the population of latent vectors to compare to.
     :param k: the number of nearest neighbors to average over when calculating the final score.
@@ -278,6 +247,7 @@ def generate_lattices(genomes, config, noise_flag=True):
 def create_population_lattices(config, noise_flag=True):
     """
     Generates a population of lattices and their noisy counterparts.
+
     :param noise_flag: boolean which determines whether a noised copy of the dataset should be created.
     :param config: CPPN-NEAT config file specifying the parameters for the genomes.
     :return lattices, noisy: the population of generated lattices and their noisy counterparts
@@ -299,6 +269,7 @@ def create_population_lattices(config, noise_flag=True):
 def create_population(config, pop_size=population_size):
     """
     Generates a population of CPPN genomes according to the given CPPN-NEAT config file and population size.
+
     :param config: CPPN-NEAT config file specifying the parameters for the genomes.
     :param pop_size: Number of genomes to create.
     :return population: Population objecting containing a dictionary in the form {genome_id: genome_object}.
@@ -310,35 +281,34 @@ def create_population(config, pop_size=population_size):
     return population
 
 
-def evaluate_half_fill(genome, config):
+def cluster_analysis(population, metrics, title, axis_labels, config):
     """
 
-    :param genome:
+    :param population:
+    :param metrics:
+    :param title:
+    :param axis_labels:
     :param config:
     :return:
     """
-    net = neat.nn.FeedForwardNetwork.create(genome, config)
-    fitness = 0
-    lattice = np.zeros((20, 20, 20), dtype=bool)
-    for (x, y, z) in value_range:
-        if net.activate((x / 20, y / 20, z / 20))[0] >= 0.5:
-            lattice[x][y][z] = True
-    _, lattice = apply_constraints(lattice)
-    for (x, y, z) in value_range:
-        if lattice[x][y][z] != 0:
-            fitness += 1
-    if fitness > 4000:
-        fitness = 4000 - fitness % 4001
-    return fitness
+    clustering = KMedoids(n_clusters=5)
+    data = np.asarray(list(zip(list(metrics[0].values()), list(metrics[1].values()))))
+    data_dict = {k: [d[k] for d in metrics] for k in metrics[0].keys()}
+    clustering.fit(data)
+    clusters = clustering.predict(data)
+    medoids = clustering.cluster_centers_
 
+    for medoid in medoids:
+        for genome, metrics in data_dict.items():
+            if list(medoid) == list(metrics):
+                medoid_lattice = generate_lattice(0, population[genome], config, False)[0][0]
+                voxel_plot(convert_to_integer(medoid_lattice), "Medoid at " + str(list(medoid)))
+                break
 
-def evaluate_half_fill_parallel(genomes, config):
-    """
-
-    :param genomes:
-    :param config:
-    :return:
-    """
-    evaluator = neat.parallel.ParallelEvaluator(thread_count, evaluate_half_fill)
-    evaluator.evaluate(genomes, config)
-    evaluator.__del__()
+    plt.figure()
+    plt.scatter(data[:, 0], data[:, 1], c=clusters, s=50, cmap='viridis')
+    plt.scatter(medoids[:, 0], medoids[:, 1], c='black', s=200, alpha=0.5)
+    plt.xlabel(axis_labels[0])
+    plt.ylabel(axis_labels[1])
+    plt.title(title)
+    plt.show()
