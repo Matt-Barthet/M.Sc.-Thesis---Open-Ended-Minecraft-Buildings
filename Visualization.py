@@ -2,6 +2,8 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
+from Delenox_Config import current_run
+
 
 def plot_statistics(generations, bests, bests_confidence, means, means_confidence, names, averaged_runs, title=None):
     generations = np.arange(1, generations + 1)
@@ -31,8 +33,7 @@ def plot_statistics(generations, bests, bests_confidence, means, means_confidenc
                     label="average fitness - " + names[stream])
     plt.legend()
     plt.grid()
-    plt.show()
-
+    plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Novelty_Data"+str(time.time())+".png")
     """for stream in range(len(bests)):
         plot_fitness(means[stream],
                      means_confidence[stream],
@@ -50,7 +51,8 @@ def voxel_plot(lattice, title, filename=None):
     ax.voxels(lattice, edgecolor="k", facecolors=get_color_map(lattice))
     ax.set_title(title)
     if filename is not None:
-        plt.savefig('Lattice_Dumps/lattice' + filename + '.png', bbox_inches='tight')
+        plt.savefig(
+            "./Delenox_Experiment_Data/Run" + str(current_run) + "/Lattice_" + str(time.time()) + ".png")
         plt.cla()
         plt.clf()
     else:
@@ -67,7 +69,7 @@ def novelty_voxel_plot(lattices, generation):
         ax.set_title(titles[number - 1])
         ax = fig.gca(projection='3d')
         ax.voxels(lattices[number - 1], edgecolor="k", facecolors=get_color_map(lattices[number - 1]))
-    plt.savefig('./Generated_Database/Generation_' + str(generation) + '_' + str(time.time()) + '.png')
+    plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Novelty_Spectrum_"+str(time.time())+".png")
     np.save("./Generated_Database/Least_Novel_" + str(time.time()) + ".npy", lattices[0])
     np.save("./Generated_Database/Mid_Novel_" + str(time.time()) + ".npy", lattices[1])
     np.save("./Generated_Database/Most_Novel_" + str(time.time()) + ".npy", lattices[2])
@@ -75,7 +77,7 @@ def novelty_voxel_plot(lattices, generation):
 
 
 def expressive_graph(x, y, title, x_label, y_label):
-    histogram, x_edges, y_edges = np.histogram2d(x=x, y=y, bins=np.linspace(0, 1, 10))
+    histogram, x_edges, y_edges = np.histogram2d(x=x, y=y)
     fig = plt.figure()
     plt.title(title)
     plt.xlabel(x_label)
@@ -83,6 +85,7 @@ def expressive_graph(x, y, title, x_label, y_label):
     pops = plt.imshow(histogram, interpolation='nearest', origin='low', aspect='auto',
                       extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]], cmap=plt.cm.get_cmap("gray"))
     fig.colorbar(pops, label="Building Frequency")
+    plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Clustering_"+str(time.time())+".png")
     plt.show()
 
 
@@ -104,7 +107,7 @@ def auto_encoder_plot(example, code, reconstruction, error, title=""):
     ax.set_title("Reconstructed Lattice - Error: " + str(error) + "%")
     ax = fig.gca(projection='3d')
     ax.voxels(reconstruction, edgecolor="k", facecolors=get_color_map(reconstruction))
-    plt.savefig('./Generated_Database/Compression_' + str(time.time()) + '.png')
+    plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Autoencoder_"+str(time.time())+".png")
     # plt.show()
 
 
@@ -145,10 +148,11 @@ def visualize_training(history):
 
     :param history:
     """
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
-    plt.title('Model Loss')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'validation'], loc='upper left')
-    plt.show()
+    plt.plot(history.history['categorical_accuracy'])
+    plt.plot(history.history['val_categorical_accuracy'])
+    plt.title('Model Accuracy')
+    plt.ylabel('Categorical Accuracy')
+    plt.xlabel('Epoch')
+    plt.legend(['Training Set', 'Validation_Set'], loc='upper left')
+    plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Training_History"+str(time.time())+".png")
+

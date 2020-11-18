@@ -1,7 +1,8 @@
 import os
 import neat
-from NeatGenerator import NeatGenerator
-from Autoencoder import auto_encoder_3d, load_model, create_auto_encoder, update_auto_encoder
+from NeatGenerator import NeatGenerator, create_population, create_population_lattices
+from Autoencoder import auto_encoder_3d, load_model, create_auto_encoder, update_auto_encoder, add_noise_parallel, \
+    test_accuracy
 from Visualization import plot_statistics
 from Delenox_Config import *
 import tensorflow as tf
@@ -26,9 +27,12 @@ if __name__ == '__main__':
     config.__setattr__("pop_size", population_size)
     config.genome_config.add_activation('sin_adjusted', sinc)
 
-    encoder = load_model("material_encoder_256")
-    decoder = load_model("material_decoder_256")
+    """encoder = load_model("material_encoder_256")
+    decoder = load_model("material_decoder_256")"""
     population_history = []
+
+    initial_population, noisy = create_population_lattices(config)
+    ae, encoder, decoder = create_auto_encoder(256, auto_encoder_3d, (initial_population, noisy))
 
     for phase in range(number_of_phases):
 
@@ -45,7 +49,7 @@ if __name__ == '__main__':
 
         # Execute the exploration phase and get the resulting population of novel individuals and statistics.
         population, neat_means, neat_means_std, neat_bests, neat_bests_std = neat_generator.run_neat()
-        population_history += list(population.values())
+        population_history += list(population)
 
         # Visualize the data retrieved for the exploration phase.
         plot_statistics(
@@ -59,9 +63,11 @@ if __name__ == '__main__':
         )
 
         # Transformation phase: create and train a new autoencoder based on the previous exploration phase
-        # ae, encoder, decoder = create_auto_encoder(256, auto_encoder_3d, list(population.values()))
+        ae, encoder, decoder = create_auto_encoder(256, auto_encoder_3d, (population, add_noise_parallel(population)))
+        # ae, encoder, decoder = create_auto_encoder(256, auto_encoder_3d, population_history)
         # ae, = update_auto_encoder(ae, list(population.values()))
-
+        test_accuracy(encoder, decoder, population_history)
+        current_run += 1
     # np.save("./Novelty_Experiments/Neat_Experiment_No_Constraints.npy", np.asarray([neat_means, neat_means_std, neat_bests, neat_bests_std]))
 
     """

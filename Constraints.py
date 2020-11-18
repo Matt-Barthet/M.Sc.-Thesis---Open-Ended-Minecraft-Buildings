@@ -1,11 +1,16 @@
+from scipy.ndimage import center_of_mass
+
 from Delenox_Config import lattice_dimensions, value_range
 import numpy as np
 from Visualization import voxel_plot
+from scipy.spatial import distance
 
 materials = {'External_Space': 0, 'Interior_Space': 1, 'Wall': 2, 'Floor': 3, 'Roof': 4}
 
+
 class InfeasibleError(Exception):
     pass
+
 
 def apply_constraints(lattice):
     """
@@ -22,6 +27,7 @@ def apply_constraints(lattice):
     except InfeasibleError:
         return False, lattice, []
 
+
 def bounding_box(lattice):
     """
     :param lattice:
@@ -33,7 +39,7 @@ def bounding_box(lattice):
     far_bound = 0
     bottom_bound = 0
     top_bound = 0
-    for (x,y,z) in value_range:
+    for (x, y, z) in value_range:
         if lattice[x][y][z] > 1:
             if y > far_bound:
                 far_bound = y
@@ -47,19 +53,20 @@ def bounding_box(lattice):
                 top_bound = z
     return (left_bound, right_bound), (near_bound, far_bound), (bottom_bound, top_bound)
 
+
 def footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
-    top_half = 0
-    bottom_half = 0
-    left_half = 0
-    right_half = 0
-    near_half = 0
-    far_half = 0
-    middle_x = 0
-    outside_x = 0
-    middle_y = 0
-    outside_y = 0
-    middle_z = 0
-    outside_z = 0
+    top_half = 1
+    bottom_half = 1
+    left_half = 1
+    right_half = 1
+    near_half = 1
+    far_half = 1
+    middle_x = 1
+    outside_x = 1
+    middle_y = 1
+    outside_y = 1
+    middle_z = 1
+    outside_z = 1
 
     width = horizontal_bounds[1] - horizontal_bounds[0]
     depth = depth_bounds[1] - depth_bounds[0]
@@ -93,7 +100,16 @@ def footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
                         near_half += 1
                     else:
                         far_half += 1
-    return [left_half / right_half, top_half / bottom_half, near_half / far_half, middle_x / outside_x, middle_y / outside_y, middle_z / outside_z]
+
+    horizontal_footprint = left_half/right_half
+    depth_footprint = near_half/far_half
+    vertical_footprint = top_half/bottom_half
+    horizontal_middle = middle_x/outside_x
+    depth_middle = middle_y/outside_y
+    vertical_middle = middle_z/outside_z
+
+    return [horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle]
+
 
 def height_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
     symmetry_count = 0
@@ -103,6 +119,7 @@ def height_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
                 if lattice[x][y][z] > 1 and lattice[x][y][int(vertical_bounds[1] / 2) + z] > 1:
                     symmetry_count += 1
     return symmetry_count
+
 
 def width_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
     symmetry_count = 0
@@ -114,6 +131,7 @@ def width_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
                     symmetry_count += 1
     return symmetry_count
 
+
 def depth_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
     symmetry_count = 0
     depth = depth_bounds[1] - depth_bounds[0]
@@ -124,6 +142,22 @@ def depth_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
                     symmetry_count += 1
     return symmetry_count
 
+
+def stability(lattice):
+    try:
+        boolean_lattice = change_to_ones(lattice.copy())
+        lattice_com = center_of_mass(boolean_lattice)
+        floor_plan = np.zeros((lattice_dimensions[0], lattice_dimensions[1]))
+        for i in range(0, lattice.shape[0]):
+            for j in range(0, lattice.shape[1]):
+                if lattice[i][j][0] == 3:
+                    floor_plan[i][j] = 1
+        (floor_x, floor_y) = center_of_mass(floor_plan)
+        return distance.euclidean((floor_x, floor_y, 0), lattice_com)
+    except (ValueError, RuntimeError):
+        raise InfeasibleError
+
+
 def assess_quality(lattice):
     """
     :param lattice:
@@ -131,39 +165,45 @@ def assess_quality(lattice):
     """
     interior_count = 0
     roof_count = 0
-    surfaces = 0
+    walls = 0
     floor_count = 0
     total_count = 0
 
     horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
-    footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
-    bounding_box_volume = (horizontal_bounds[1] - horizontal_bounds[0]) * (depth_bounds[1] - depth_bounds[0]) * vertical_bounds[1]
-    vertical_symmetry_count = height_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
+    (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
+
+    width = (horizontal_bounds[1] - horizontal_bounds[0])
+    height = vertical_bounds[1]
+    depth = (depth_bounds[1] - depth_bounds[0])
+
+    bounding_box_volume = width * depth * height
+    bounding_box_area = (width * depth + width * height + height * depth) * 2
+
+    """vertical_symmetry_count = height_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
     horizontal_symmetry_count = width_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
-    depth_symmetry_count = depth_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
+    depth_symmetry_count = depth_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds)"""
+    lattice_stability = stability(lattice)
 
     for (x, y, z) in value_range:
         if lattice[x][y][z] > 0:
             total_count += 1
-            if lattice[x][y][z] != 1:
-                surfaces += 1
-            if lattice[x][y][z] == 4:
+            if lattice[x][y][z] == 2:
+                walls += 1
+            elif lattice[x][y][z] == 4:
                 roof_count += 1
             elif lattice[x][y][z] == 3:
                 floor_count += 1
             elif lattice[x][y][z] == 1:
                 interior_count += 1
-
     try:
-        surface_area_ratio = surfaces / lattice_dimensions[0] ** 3
-        interior_ratio = interior_count / total_count
-        floor_to_ceiling = floor_count / roof_count
-        """if surface_area_ratio < 0.25 or interior_ratio < 0.5:
-            raise InfeasibleError"""
+        building_bounding_area = (walls + roof_count + floor_count) / bounding_box_area
+        building_bounding_volume = total_count / bounding_box_volume
+        bounding_lattice_volume = bounding_box_volume / lattice_dimensions[0] ** 3
     except ZeroDivisionError:
         raise InfeasibleError
 
-    return [interior_ratio, floor_to_ceiling, surface_area_ratio]
+    return [building_bounding_area, building_bounding_volume, bounding_lattice_volume, lattice_stability, horizontal_middle, depth_middle]
+
 
 def iterative_flood(input_lattice):
     """
@@ -192,6 +232,7 @@ def iterative_flood(input_lattice):
         raise InfeasibleError
 
     return visited
+
 
 def detect_structure(lattice, visited, label, coordinate):
     """
@@ -229,6 +270,7 @@ def detect_structure(lattice, visited, label, coordinate):
     # Return the boolean grid but converted to integer values to align with the rest of the pipeline
     return np.asarray(visited, dtype=int)
 
+
 def keep_largest_structure(visited, label):
     """
     :param visited:
@@ -261,6 +303,7 @@ def keep_largest_structure(visited, label):
                     visited[i][j][k] = 1
 
     return visited
+
 
 def identify_materials(lattice):
     """
@@ -307,6 +350,7 @@ def identify_materials(lattice):
 
     return lattice
 
+
 def change_to_ones(input_lattice):
     """
 
@@ -316,8 +360,6 @@ def change_to_ones(input_lattice):
     for i in range(0, input_lattice.shape[0]):
         for j in range(0, input_lattice.shape[1]):
             for k in range(0, input_lattice.shape[2]):
-                """# Set interior space to empty voxels
-                if input_lattice[i][j][k] == 1:
-                    input_lattice[i][j][k] = 0"""
-                if input_lattice[i][j][k] != 0:
+                if input_lattice[i][j][k] > 1:
                     input_lattice[i][j][k] = 1
+    return input_lattice

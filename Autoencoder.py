@@ -5,7 +5,7 @@ from keras.layers import Dense, Flatten, Reshape, Input, Conv2D, Conv2DTranspose
 from keras.models import Sequential, Model
 from sklearn.model_selection import train_test_split
 from tensorflow.python.keras.models import model_from_json
-from Delenox_Config import lattice_dimensions, batch_size, no_epochs, thread_count, value_range
+from Delenox_Config import lattice_dimensions, batch_size, no_epochs, thread_count, value_range, current_run
 from Visualization import auto_encoder_plot, visualize_training
 
 
@@ -34,16 +34,12 @@ def create_auto_encoder(compressed_length, model_type, population=None):
 
     ae, encoder_model, decoder_model = model_type(compressed_length)
 
-    encoder_model.summary()
-    decoder_model.summary()
-
     # Compiling the AE and fitting it using the noisy population as input and the original population as the target
     ae.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['categorical_accuracy', 'binary_accuracy'])
 
     # If the function is given a population of lattices, create a set of noisy variants and partition into train-test.
     if population is not None:
-        population_noisy = add_noise_parallel(population)
-        training_noisy, test_noisy, training, test = train_test_split(population_noisy, population, test_size=0.2, random_state=29)
+        training_noisy, test_noisy, training, test = train_test_split(population[1], population[0], test_size=0.2, random_state=29)
     else:
         test = np.load("Training_Materials.npy")
         training = np.load("Test_Materials.npy")
@@ -51,11 +47,11 @@ def create_auto_encoder(compressed_length, model_type, population=None):
         test_noisy = np.load("Training_Materials_noisy.npy")
 
     history = ae.fit(x=training_noisy, y=training, epochs=no_epochs,
-                     batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True)
+                     batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True, verbose=0)
     visualize_training(history)
 
-    save_model(encoder_model, "material_encoder_256")
-    save_model(decoder_model, "material_decoder_256")
+    # save_model(encoder_model, "material_encoder_256")
+    # save_model(decoder_model, "material_decoder_256")
 
     return ae, encoder_model, decoder_model
 
@@ -280,8 +276,8 @@ def test_accuracy(encoder, decoder, test):
         reconstructed = decoder.predict(compressed[None])[0]
         integer_reconstruct = convert_to_integer(reconstructed)
         error.append(calculate_error(lattice, integer_reconstruct))
-        auto_encoder_plot(lattice, compressed, integer_reconstruct, error[-1])
-    print("MEAN:", np.mean(error), " - ST-DEV:", np.std(error))
+        # auto_encoder_plot(lattice, compressed, integer_reconstruct, error[-1])
+    np.save(str(np.mean(error))+".npy", np.mean(error))
 
 
 def calculate_error(original, reconstruction):
