@@ -14,7 +14,7 @@ def update_auto_encoder(ae, population):
     training_noisy, test_noisy, training, test = train_test_split(population_noisy, population, test_size=0.2,
                                                                   random_state=29)
     history = ae.fit(x=training_noisy, y=training, epochs=no_epochs,
-                     batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True)
+                     batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True, verbose=1)
     visualize_training(history)
     return ae
 
@@ -47,7 +47,7 @@ def create_auto_encoder(compressed_length, model_type, population=None):
         test_noisy = np.load("Training_Materials_noisy.npy")
 
     history = ae.fit(x=training_noisy, y=training, epochs=no_epochs,
-                     batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True, verbose=0)
+                     batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True, verbose=1)
     visualize_training(history)
 
     # save_model(encoder_model, "material_encoder_256")

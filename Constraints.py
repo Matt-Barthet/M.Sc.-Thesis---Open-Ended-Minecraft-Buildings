@@ -1,5 +1,4 @@
 from scipy.ndimage import center_of_mass
-
 from Delenox_Config import lattice_dimensions, value_range
 import numpy as np
 from Visualization import voxel_plot
@@ -153,7 +152,7 @@ def stability(lattice):
                 if lattice[i][j][0] == 3:
                     floor_plan[i][j] = 1
         (floor_x, floor_y) = center_of_mass(floor_plan)
-        return distance.euclidean((floor_x, floor_y, 0), lattice_com)
+        return distance.euclidean((floor_x, floor_y, 0), lattice_com), distance.euclidean((floor_x, floor_y), (lattice_com[0], lattice_com[1]))
     except (ValueError, RuntimeError):
         raise InfeasibleError
 
@@ -182,7 +181,7 @@ def assess_quality(lattice):
     """vertical_symmetry_count = height_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
     horizontal_symmetry_count = width_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
     depth_symmetry_count = depth_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds)"""
-    lattice_stability = stability(lattice)
+    lattice_stability, floor_stability = stability(lattice)
 
     for (x, y, z) in value_range:
         if lattice[x][y][z] > 0:
@@ -199,10 +198,34 @@ def assess_quality(lattice):
         building_bounding_area = (walls + roof_count + floor_count) / bounding_box_area
         building_bounding_volume = total_count / bounding_box_volume
         bounding_lattice_volume = bounding_box_volume / lattice_dimensions[0] ** 3
+        interior_volume = interior_count / lattice_dimensions[0] ** 3
+
+        """if 0 < horizontal_middle <= 0.25:
+            voxel_plot(lattice, " 0.25 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
+        elif 0.25 < horizontal_middle <= 0.5:
+            voxel_plot(lattice, " 0.5 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
+        elif 0.5 < horizontal_middle <= 0.75:
+            voxel_plot(lattice, " 0.75 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
+        elif 0.75 < horizontal_middle <= 1:
+            voxel_plot(lattice, " 1 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
+        elif 1 < horizontal_middle <= 1.25:
+            voxel_plot(lattice, " 1.25 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
+        elif 1.25 < horizontal_middle <= 1.5:
+            voxel_plot(lattice, " 1.5 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
+        elif 1.5 < horizontal_middle <= 1.75:
+            voxel_plot(lattice, " 1.75 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
+        elif 1.75 < horizontal_middle <= 2:
+            voxel_plot(lattice, " 2 : 1 (X-Plane - Middle Voxels : Outer Voxels)")"""
+
+        """if building_bounding_area < 0.7 or (interior_volume < 0.2 or interior_volume > 0.6) or floor_stability > 4:
+            raise InfeasibleError"""
+
+        return {"Building Area": building_bounding_area, "Building Volume": building_bounding_volume,
+                "Bounding Box Volume": bounding_lattice_volume, "Lattice Stability": lattice_stability,
+                "Width Middle": horizontal_middle, "Depth Middle": depth_middle, "Interior Volume": interior_volume}
+
     except ZeroDivisionError:
         raise InfeasibleError
-
-    return [building_bounding_area, building_bounding_volume, bounding_lattice_volume, lattice_stability, horizontal_middle, depth_middle]
 
 
 def iterative_flood(input_lattice):
@@ -297,7 +320,6 @@ def keep_largest_structure(visited, label):
         for j in range(0, visited.shape[1]):
             for k in range(0, visited.shape[2]):
                 if visited[i][j][k] != 0 and not visited[i][j][k] == keep_voxel:
-
                     visited[i][j][k] = 0
                 elif visited[i][j][k] != 0 and visited[i][j][k] == keep_voxel:
                     visited[i][j][k] = 1
@@ -351,10 +373,11 @@ def identify_materials(lattice):
     return lattice
 
 
-def change_to_ones(input_lattice):
+def change_to_ones(input_lattice, keep_interior=False):
     """
 
-    :param input_lattice: 
+    :param input_lattice:
+    :param keep_interior
     :return: 
     """
     for i in range(0, input_lattice.shape[0]):
@@ -362,4 +385,6 @@ def change_to_ones(input_lattice):
             for k in range(0, input_lattice.shape[2]):
                 if input_lattice[i][j][k] > 1:
                     input_lattice[i][j][k] = 1
+                elif not keep_interior:
+                    input_lattice[i][j][k] = 0
     return input_lattice

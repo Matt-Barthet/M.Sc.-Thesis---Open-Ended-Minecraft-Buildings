@@ -1,7 +1,7 @@
 from multiprocessing.pool import Pool
 from sklearn_extra.cluster import KMedoids
 from tensorflow.python.keras.utils.np_utils import to_categorical
-from Autoencoder import add_noise, test_accuracy, convert_to_integer
+from Autoencoder import add_noise, convert_to_integer
 from Delenox_Config import *
 from Visualization import *
 from Constraints import *
@@ -16,28 +16,26 @@ class NeatGenerator:
     novelty search as the heuristic, which computes the average Euclidean distance to the k-nearest
     neighbors as well as to an archive of unique novel individuals from past generations.
     """
-    def __init__(self, encoder, decoder, config, generations, k, num_workers, latent_size):
+    def __init__(self, encoder, decoder, config, generations, k, latent_size, complexity):
         self.encoder = encoder
         self.decoder = decoder
         self.config = config
         self.generations = generations
-        self.population = None
-        self.compressed_population = {}
         self.neighbors = k
-        self.num_workers = num_workers
         self.means_list = [[] for _ in range(generations_per_run)]
         self.std_list = [[] for _ in range(generations_per_run)]
         self.bests_list = [[] for _ in range(generations_per_run)]
         self.compressed_length = latent_size
         self.archive = {}
         self.current_gen = 0
-        self.building_bounding_area = []
-        self.building_bounding_volume = []
-        self.bounding_lattice_volume = []
-        self.lattice_stability = []
-        self.horizontal_middle = []
-        self.depth_middle = []
+        self.complexity = complexity
         self.phase_best_fit = []
+        self.phase_best_genomes = {}
+        self.population = None
+        self.compressed_population = {}
+
+        self.metrics = {"Lattice Stability": {}, "Building Area": {}, "Building Volume": {}, "Bounding Box Volume": {},
+                        "Interior Volume": {}, "Depth Middle": {}, "Width Middle": {}}
 
     def run_neat(self):
         """
@@ -52,10 +50,11 @@ class NeatGenerator:
             print("\nStarting Run: ", run + 1)
             self.current_gen = 0
             self.archive.clear()
-            self.config.__setattr__("pop_size", population_size)
             self.population = neat.Population(self.config)
             self.population.add_reporter(neat.StdOutReporter(True))
             self.population.add_reporter(neat.StatisticsReporter())
+            self.config.__setattr__("pop_size", population_size)
+            self.config.__setattr__("num_hidden", self.complexity)
             self.population.run(self.novelty_search_parallel, self.generations)
             means = self.population.reporters.reporters[1].get_fitness_mean()
             bests = self.population.reporters.reporters[1].get_fitness_stat(max)
@@ -63,12 +62,6 @@ class NeatGenerator:
             for generation in range(generations_per_run):
                 self.means_list[generation].append(means[generation])
                 self.bests_list[generation].append(bests[generation])
-
-        expressive_graph(self.building_bounding_area, self.bounding_lattice_volume, "No Constraints", 'Building Area / Bounding Box Area', 'Bounding Box Volume / Lattice Volume')
-        expressive_graph(self.building_bounding_volume, self.bounding_lattice_volume, "No Constraints", 'Building Volume / Bounding Box Volume', 'Bounding Box Volume / Lattice Volume')
-        expressive_graph(self.lattice_stability, self.bounding_lattice_volume, "No Constraints", 'Stability', 'Bounding Box / Lattice_Volume')
-        expressive_graph(self.lattice_stability, self.building_bounding_area, "No Constraints", 'Stability', 'Building Area / Bounding Box Area')
-        expressive_graph(self.depth_middle, self.horizontal_middle, "No Constraints", 'Middle X vs Outer X', 'Middle Y vs Outer Y')
 
         means = []
         means_confidence = []
@@ -81,7 +74,7 @@ class NeatGenerator:
             bests.append(np.mean(self.bests_list[generation]))
             bests_confidence.append(np.std(self.bests_list[generation]))
 
-        return np.asarray(self.phase_best_fit), means, means_confidence, bests, bests_confidence
+        return self.phase_best_fit, means, means_confidence, bests, bests_confidence, self.phase_best_genomes
 
     def novelty_search_parallel(self, genomes, config):
         """
@@ -93,21 +86,18 @@ class NeatGenerator:
         :param genomes: population of genomes to be evaluated.
         :param config: the NEAT-Python configuration file.
         """
-        lattices = {}
-        remove = []
         pool = Pool(thread_count)
         jobs = []
 
         self.compressed_population.clear()
-        building_bounding_area = {}
-        building_bounding_volume = {}
-        bounding_lattice_volume = {}
-        lattice_stability = {}
-        horizontal_middle = {}
-        depth_middle = {}
+        lattices = {}
+        remove = []
 
-        # start = time.time()
-        # print("(CPU x " + str(thread_count) + "): Generating lattices and applying filters...", end=""),
+        metrics_this_run = {"Lattice Stability": {}, "Building Area": {}, "Building Volume": {},
+                            "Bounding Box Volume": {}, "Interior Volume": {}, "Depth Middle": {}, "Width Middle": {}}
+
+        start = time.time()
+        print("(CPU x " + str(thread_count) + "): Generating lattices and applying filters...", end="")
         for genome_id, genome in genomes:
             jobs.append(pool.apply_async(generate_lattice, (genome_id, genome, config, False, None)))
         for job, (genome_id, genome) in zip(jobs, genomes):
@@ -117,36 +107,28 @@ class NeatGenerator:
                 genome.fitness = 0
             else:
                 lattices.update(key_pair)
-                building_bounding_area.update({genome_id: metrics[0]})
-                building_bounding_volume.update({genome_id: metrics[1]})
-                bounding_lattice_volume.update({genome_id: metrics[2]})
-                lattice_stability.update({genome_id: metrics[3]})
-                horizontal_middle.update({genome_id: metrics[4]})
-                depth_middle.update({genome_id: metrics[5]})
+                for key in metrics_this_run.keys():
+                    metrics_this_run[key].update({genome_id: metrics[key]})
 
-        # print("Done! (", np.round(time.time() - start, 2), "seconds ).")
+        print("Done! (", np.round(time.time() - start, 2), "seconds ).")
 
-        # start = time.time()
-        # print("(GPU): Compressing the generated lattices using encoder model in main thread...", end=""),
+        start = time.time()
+        print("(GPU): Compressing the generated lattices using encoder model in main thread...", end="")
         for lattice_id, lattice in lattices.items():
             compressed = self.encoder.predict(lattice[None])[0]
             self.compressed_population.update({lattice_id: compressed})
-        # print("Done! (", np.round(time.time() - start, 2), "seconds ).")
+        print("Done! (", np.round(time.time() - start, 2), "seconds ).")
 
-        # start = time.time()
-        # print("(CPU x " + str(thread_count) + "): Starting novelty search on compressed population...", end=""),
         jobs.clear()
+        start = time.time()
+        print("(CPU x " + str(thread_count) + "): Starting novelty search on compressed population...", end="")
         for genome_id in self.compressed_population.keys():
             parameters = (genome_id, self.compressed_population, self.neighbors, self.compressed_length, self.archive)
             jobs.append(pool.apply_async(novelty_search, parameters))
         for job, genome_id in zip(jobs, self.compressed_population.keys()):
             self.population.population[genome_id].fitness = job.get()
-        # print("Done! (", np.round(time.time() - start, 2), "seconds ).")
 
-        pool.close()
-        pool.join()
-
-        # print("Number of Invalid Lattices: " + str(len(remove)))
+        print("Done! (", np.round(time.time() - start, 2), "seconds ).")
 
         fitness = {genome_id: fitness.fitness for genome_id, fitness in self.population.population.items() if
                    fitness.fitness > 0}
@@ -155,38 +137,46 @@ class NeatGenerator:
         for individual in range(add_to_archive):
             lattice = lattices[sorted_keys[-individual]]
             vector = self.encoder.predict(lattice[None])[0]
-            self.archive.update({sorted_keys[-individual]: vector})
+            if len(self.archive) == 0 or not (vector == list(self.archive.values())).all(1).any():
+                self.archive.update({sorted_keys[-individual]: vector})
+
+        """if self.current_gen % 10 == 0 or self.current_gen +1 == self.generations:
+            most_novel_lattice = lattices[sorted_keys[-1]]
+            least = lattices[sorted_keys[0]]
+            mid = lattices[sorted_keys[int(len(sorted_keys) / 2)]]
+            novelty_voxel_plot([convert_to_integer(least), convert_to_integer(mid), convert_to_integer(most_novel_lattice)],
+                               self.current_gen + 1)"""
+
+        """jobs.clear()
+        for genome_id, lattice in lattices.items():
+            jobs.append(pool.apply_async(voxel_based_diversity, (genome_id, lattice, lattices.values())))
+        for job in jobs:
+            lattices_diversities.update(job.get())"""
+
+        pool.close()
+        pool.join()
+
+        print("\nNumber of Infeasible Buildings:", len(remove), "\n")
 
         if self.current_gen + 1 == generations_per_run:
-            cluster_analysis(self.population.population, [building_bounding_area, bounding_lattice_volume], "K-Medoids (K=5)", ['Building Area / Bounding Box Area', 'Bounding Box Volume / Lattice Volume'], self.config)
-            cluster_analysis(self.population.population, [building_bounding_volume, bounding_lattice_volume], "K-Medoids (K=5)", ['Building Volume / Bounding Box Volume', 'Bounding Box Volume / Lattice Volume'], self.config)
-            cluster_analysis(self.population.population, [lattice_stability, bounding_lattice_volume], "K-Medoids (K=5)", ['Stability', 'Bounding Box / Lattice Volume'], self.config)
-            cluster_analysis(self.population.population, [lattice_stability, building_bounding_area], "K-Medoids (K=5)", ['Stability', 'Building Area / Bounding Box Area'], self.config)
-            cluster_analysis(self.population.population, [depth_middle, horizontal_middle], "K-Medoids (K=5)", ['Middle X vs Outer X', 'Middle Y vs Outer Y'], self.config)
 
             for individual in range(best_fit_count):
                 lattice = lattices[sorted_keys[-individual]]
                 self.phase_best_fit.append(lattice)
-
-            self.building_bounding_area += list(building_bounding_area.values())
-            self.bounding_lattice_volume += list(bounding_lattice_volume.values())
-            self.building_bounding_volume += list(building_bounding_volume.values())
-            self.lattice_stability += list(lattice_stability.values())
-            self.horizontal_middle += list(horizontal_middle.values())
-            self.depth_middle += list(depth_middle.values())
-
-            most_novel_lattice = lattices[sorted_keys[-1]]
-            least = lattices[sorted_keys[0]]
-            mid = lattices[sorted_keys[int(len(sorted_keys) / 2)]]
-            novelty_voxel_plot([convert_to_integer(least), convert_to_integer(mid), convert_to_integer(most_novel_lattice)], self.current_gen + 1)
+                self.phase_best_genomes.update({len(self.phase_best_genomes): self.population.population[sorted_keys[-individual]]})
 
         for key in remove:
             del self.population.population[key]
         self.current_gen += 1
 
 
-def voxel_based_diversity(lattice_1, lattice_2):
-    pass
+def voxel_based_diversity(genome_id, lattice, lattices):
+    pixel_diversity = 0
+    for compare in lattices:
+        for (x, y, z) in value_range:
+            if lattice[x][y][z].all() != compare[x][y][z].all():
+                pixel_diversity += 1
+    return {genome_id: pixel_diversity}
 
 
 def novelty_search(genome_id, compressed_population, k, compressed_length, archive):
@@ -281,8 +271,6 @@ def create_population_lattices(config, noise_flag=True):
         lattices += lattice_batch
         if noise_flag:
             noisy += noisy_batch
-    # np.save("Training_Carved.npy", np.asarray(lattices[:best_fit_count]))
-    # np.save("Training_Carved_Noisy.npy", np.asarray(noisy[:best_fit_count]))
     return np.asarray(lattices[:best_fit_count * runs_per_phase]), np.asarray(noisy[:best_fit_count * runs_per_phase])
 
 

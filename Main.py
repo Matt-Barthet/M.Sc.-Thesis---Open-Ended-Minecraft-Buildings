@@ -6,6 +6,7 @@ from Autoencoder import auto_encoder_3d, load_model, create_auto_encoder, update
 from Visualization import plot_statistics
 from Delenox_Config import *
 import tensorflow as tf
+import numpy as np
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
@@ -27,12 +28,14 @@ if __name__ == '__main__':
     config.__setattr__("pop_size", population_size)
     config.genome_config.add_activation('sin_adjusted', sinc)
 
-    """encoder = load_model("material_encoder_256")
-    decoder = load_model("material_decoder_256")"""
+    encoder = load_model("material_encoder_256")
+    decoder = load_model("material_decoder_256")
     population_history = []
 
-    initial_population, noisy = create_population_lattices(config)
-    ae, encoder, decoder = create_auto_encoder(256, auto_encoder_3d, (initial_population, noisy))
+    # initial_population, noisy = create_population_lattices(config)
+    # ae, encoder, decoder = create_auto_encoder(256, auto_encoder_3d, (initial_population, noisy))
+
+    current_complexity = 0
 
     for phase in range(number_of_phases):
 
@@ -42,14 +45,18 @@ if __name__ == '__main__':
             decoder=decoder,
             config=config,
             generations=generations_per_run,
-            num_workers=thread_count,
             k=k_nearest_neighbors,
+            complexity = current_complexity,
             latent_size=compressed_length
         )
 
         # Execute the exploration phase and get the resulting population of novel individuals and statistics.
-        population, neat_means, neat_means_std, neat_bests, neat_bests_std = neat_generator.run_neat()
-        population_history += list(population)
+        best_fit, neat_means, neat_means_std, neat_bests, neat_bests_std, new_population = neat_generator.run_neat()
+        population_history += best_fit
+
+        for id, individual in new_population.items():
+            current_complexity = np.max([current_complexity, individual.size()[0]])
+        print(current_complexity)
 
         # Visualize the data retrieved for the exploration phase.
         plot_statistics(
@@ -63,25 +70,11 @@ if __name__ == '__main__':
         )
 
         # Transformation phase: create and train a new autoencoder based on the previous exploration phase
-        ae, encoder, decoder = create_auto_encoder(256, auto_encoder_3d, (population, add_noise_parallel(population)))
+        ae, encoder, decoder = create_auto_encoder(256, auto_encoder_3d, (np.asarray(best_fit), add_noise_parallel(best_fit)))
+
         # ae, encoder, decoder = create_auto_encoder(256, auto_encoder_3d, population_history)
         # ae, = update_auto_encoder(ae, list(population.values()))
         test_accuracy(encoder, decoder, population_history)
         current_run += 1
-    # np.save("./Novelty_Experiments/Neat_Experiment_No_Constraints.npy", np.asarray([neat_means, neat_means_std, neat_bests, neat_bests_std]))
 
-    """
-    latent_solver_random = GeneticAlgorithm(
-        n_genes=compressed_length,
-        number_of_runs=averaged_runs,
-        pop_size=best_fit_count,
-        max_gen=latent_generations,
-        mutation_rate=latent_mutation_rate,
-        selection_strategy="roulette_wheel",
-        variables_limits=latent_variable_range,
-        k=10,
-        plot_results=False,
-        num_workers=thread_count
-    )
-    latent_means, latent_means_std, latent_bests, latent_bests_std = latent_solver_random.solve()
-    """
+    # np.save("./Novelty_Experiments/Neat_Experiment_No_Constraints.npy", np.asarray([neat_means, neat_means_std, neat_bests, neat_bests_std]))

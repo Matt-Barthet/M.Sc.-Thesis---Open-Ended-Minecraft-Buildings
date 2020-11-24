@@ -1,7 +1,7 @@
 import numpy as np
 
 # General Parameters
-thread_count = 16
+thread_count = 10
 number_of_phases = 5
 
 # Parameters for input space of un/compressed buildings
@@ -10,7 +10,7 @@ activations = np.linspace(0, 1, lattice_dimensions[0])
 value_range = [(x, y, z) for x in range(lattice_dimensions[0]) for y in range(lattice_dimensions[0]) for z in range(lattice_dimensions[0])]
 
 # Auto-Encoder parameters for architecture and learning
-batch_size = 128
+batch_size = 32
 no_epochs = 100
 loss_function = "categorical_crossentropy"
 accuracy_metrics = ['categorical_accuracy', 'binary_accuracy']
@@ -24,7 +24,7 @@ compressed_length = 256
 current_run = 1
 
 # Parameters for constrained novelty search in the NEAT module
-k_nearest_neighbors = 20
+k_nearest_neighbors = 10
 add_to_archive = 5
 compressed_length = 256
 
