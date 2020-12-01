@@ -168,7 +168,7 @@ def assess_quality(lattice):
     floor_count = 0
     total_count = 0
 
-    horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
+    """horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
     (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
 
     width = (horizontal_bounds[1] - horizontal_bounds[0])
@@ -177,52 +177,34 @@ def assess_quality(lattice):
 
     bounding_box_volume = width * depth * height
     bounding_box_area = (width * depth + width * height + height * depth) * 2
-
-    """vertical_symmetry_count = height_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
-    horizontal_symmetry_count = width_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
-    depth_symmetry_count = depth_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds)"""
     lattice_stability, floor_stability = stability(lattice)
-
+    """
     for (x, y, z) in value_range:
         if lattice[x][y][z] > 0:
             total_count += 1
-            if lattice[x][y][z] == 2:
+            """if lattice[x][y][z] == 2:
                 walls += 1
             elif lattice[x][y][z] == 4:
                 roof_count += 1
             elif lattice[x][y][z] == 3:
                 floor_count += 1
             elif lattice[x][y][z] == 1:
-                interior_count += 1
+                interior_count += 1"""
     try:
-        building_bounding_area = (walls + roof_count + floor_count) / bounding_box_area
+        if total_count == 0 or total_count == lattice_dimensions[0] ** 3:
+            raise ZeroDivisionError
+
+        """building_bounding_area = (walls + roof_count + floor_count) / bounding_box_area
         building_bounding_volume = total_count / bounding_box_volume
         bounding_lattice_volume = bounding_box_volume / lattice_dimensions[0] ** 3
         interior_volume = interior_count / lattice_dimensions[0] ** 3
 
-        """if 0 < horizontal_middle <= 0.25:
-            voxel_plot(lattice, " 0.25 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
-        elif 0.25 < horizontal_middle <= 0.5:
-            voxel_plot(lattice, " 0.5 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
-        elif 0.5 < horizontal_middle <= 0.75:
-            voxel_plot(lattice, " 0.75 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
-        elif 0.75 < horizontal_middle <= 1:
-            voxel_plot(lattice, " 1 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
-        elif 1 < horizontal_middle <= 1.25:
-            voxel_plot(lattice, " 1.25 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
-        elif 1.25 < horizontal_middle <= 1.5:
-            voxel_plot(lattice, " 1.5 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
-        elif 1.5 < horizontal_middle <= 1.75:
-            voxel_plot(lattice, " 1.75 : 1 (X-Plane - Middle Voxels : Outer Voxels)")
-        elif 1.75 < horizontal_middle <= 2:
-            voxel_plot(lattice, " 2 : 1 (X-Plane - Middle Voxels : Outer Voxels)")"""
-
-        """if building_bounding_area < 0.7 or (interior_volume < 0.2 or interior_volume > 0.6) or floor_stability > 4:
-            raise InfeasibleError"""
+        if building_bounding_area < 0.7 or (interior_volume < 0.2 or interior_volume > 0.6) or floor_stability > 4:
+            raise InfeasibleError
 
         return {"Building Area": building_bounding_area, "Building Volume": building_bounding_volume,
                 "Bounding Box Volume": bounding_lattice_volume, "Lattice Stability": lattice_stability,
-                "Width Middle": horizontal_middle, "Depth Middle": depth_middle, "Interior Volume": interior_volume}
+                "Width Middle": horizontal_middle, "Depth Middle": depth_middle, "Interior Volume": interior_volume}"""
 
     except ZeroDivisionError:
         raise InfeasibleError

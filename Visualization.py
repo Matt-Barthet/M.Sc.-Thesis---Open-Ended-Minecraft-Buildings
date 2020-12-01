@@ -2,47 +2,22 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
-from Delenox_Config import current_run
+from Delenox_Config import current_run, runs_per_phase
 
 
-def plot_statistics(generations, bests, bests_confidence, means, means_confidence, names, averaged_runs, title=None):
-    generations = np.arange(1, generations + 1)
-    _, ax = plt.subplots()
-    if title is None:
-        ax.set_title("Max Novelty vs Generation (" + str(averaged_runs) + " runs)")
-    else:
-        ax.set_title(title)
+def plot_statistics(metrics, keys, current_run):
 
-    for stream in range(len(bests)):
-        ax.errorbar(x=generations,
-                    y=bests[stream],
-                    yerr=bests_confidence[stream],
-                    fmt='-o',
-                    label="best fitness - " + names[stream])
-    plt.legend()
-    plt.grid()
-    plt.show()
-
-    _, ax = plt.subplots()
-    ax.set_title("Average Novelty vs Generation (" + str(averaged_runs) + " runs)")
-    for stream in range(len(bests)):
-        ax.errorbar(x=generations,
-                    y=means[stream],
-                    yerr=means_confidence[stream],
-                    fmt='-o',
-                    label="average fitness - " + names[stream])
-    plt.legend()
-    plt.grid()
-    plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Novelty_Data"+str(time.time())+".png")
-    """for stream in range(len(bests)):
-        plot_fitness(means[stream],
-                     means_confidence[stream],
-                     generations,
-                     "Average Novelty vs Generations: " + names[stream])
-        plot_fitness(bests[stream],
-                     bests_confidence[stream],
-                     generations,
-                     "Max Novelty vs Generations: " + names[stream])"""
+    for key in keys:
+        plt.figure()
+        plt.title("{} vs Generation over {:d} Runs.".format(key, runs_per_phase))
+        plt.xlabel("Generation")
+        plt.ylabel(key)
+        plt.errorbar(x=range(len(metrics[key])),
+                     y=metrics[key],
+                     yerr=metrics[key + ' confidence'],
+                     fmt='-o')
+        plt.grid()
+        plt.savefig("./Delenox_Experiment_Data/Run{}/Stats_{}.png".format(current_run, key))
 
 
 def voxel_plot(lattice, title, filename=None):
@@ -69,11 +44,11 @@ def novelty_voxel_plot(lattices, generation):
         ax.set_title(titles[number - 1])
         ax = fig.gca(projection='3d')
         ax.voxels(lattices[number - 1], edgecolor="k", facecolors=get_color_map(lattices[number - 1]))
-    #plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Novelty_Spectrum_"+str(time.time())+".png")
-    #np.save("./Generated_Database/Least_Novel_" + str(time.time()) + ".npy", lattices[0])
-    #np.save("./Generated_Database/Mid_Novel_" + str(time.time()) + ".npy", lattices[1])
-    #np.save("./Generated_Database/Most_Novel_" + str(time.time()) + ".npy", lattices[2])
-    plt.show()
+    plt.savefig("./Delenox_Experiment_Data/Run{}/Lattices_{:f}.png".format(current_run, time.time()))
+    # np.save("./Generated_Database/Least_Novel_" + str(time.time()) + ".npy", lattices[0])
+    # np.save("./Generated_Database/Mid_Novel_" + str(time.time()) + ".npy", lattices[1])
+    # np.save("./Generated_Database/Most_Novel_" + str(time.time()) + ".npy", lattices[2])
+    # plt.show()
 
 
 def expressive_graph(x, y, title, x_label, y_label):
@@ -148,11 +123,12 @@ def visualize_training(history):
 
     :param history:
     """
+    plt.figure()
     plt.plot(history.history['categorical_accuracy'])
     plt.plot(history.history['val_categorical_accuracy'])
     plt.title('Model Accuracy')
     plt.ylabel('Categorical Accuracy')
     plt.xlabel('Epoch')
     plt.legend(['Training Set', 'Validation_Set'], loc='upper left')
-    plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Training_History"+str(time.time())+".png")
+    plt.savefig("./Delenox_Experiment_Data/Run{}/Training_History.png".format(current_run))
 

@@ -1,3 +1,4 @@
+import os
 from multiprocessing.pool import Pool
 from sklearn_extra.cluster import KMedoids
 from tensorflow.python.keras.utils.np_utils import to_categorical
@@ -16,26 +17,42 @@ class NeatGenerator:
     novelty search as the heuristic, which computes the average Euclidean distance to the k-nearest
     neighbors as well as to an archive of unique novel individuals from past generations.
     """
-    def __init__(self, encoder, decoder, config, generations, k, latent_size, complexity):
+
+    def __init__(self, encoder, decoder, generations, k, latent_size, complexity, config):
         self.encoder = encoder
         self.decoder = decoder
-        self.config = config
         self.generations = generations
         self.neighbors = k
         self.means_list = [[] for _ in range(generations_per_run)]
         self.std_list = [[] for _ in range(generations_per_run)]
         self.bests_list = [[] for _ in range(generations_per_run)]
+        self.node_complexity = [[] for _ in range(generations_per_run)]
+        self.connection_complexity = [[] for _ in range(generations_per_run)]
+        self.archive_size = [[] for _ in range(generations_per_run)]
+        self.species_count = [[] for _ in range(generations_per_run)]
         self.compressed_length = latent_size
         self.archive = {}
         self.current_gen = 0
-        self.complexity = complexity
         self.phase_best_fit = []
         self.phase_best_genomes = {}
         self.population = None
         self.compressed_population = {}
+        self.config = config
+        self.config.__setattr__("pop_size", population_size)
+        self.config.__getattribute__("genome_config").num_hidden = complexity
 
-        self.metrics = {"Lattice Stability": {}, "Building Area": {}, "Building Volume": {}, "Bounding Box Volume": {},
-                        "Interior Volume": {}, "Depth Middle": {}, "Width Middle": {}}
+        self.building_metrics = {"Lattice Stability": {}, "Building Area": {}, "Building Volume": {},
+                                 "Bounding Box Volume": {},
+                                 "Interior Volume": {}, "Depth Middle": {}, "Width Middle": {}
+                                 }
+
+        self.neat_metrics = {'Mean Novelty': [], 'Mean Novelty confidence': [],
+                             'Best Novelty': [], 'Best Novelty confidence': [],
+                             'Node Complexity': [], 'Node Complexity confidence': [],
+                             'Connection Complexity': [], 'Connection Complexity confidence': [],
+                             'Archive Size': [], 'Archive Size confidence': [],
+                             'Species Count': [], 'Species Count confidence': []
+                             }
 
     def run_neat(self):
         """
@@ -53,8 +70,6 @@ class NeatGenerator:
             self.population = neat.Population(self.config)
             self.population.add_reporter(neat.StdOutReporter(True))
             self.population.add_reporter(neat.StatisticsReporter())
-            self.config.__setattr__("pop_size", population_size)
-            self.config.__setattr__("num_hidden", self.complexity)
             self.population.run(self.novelty_search_parallel, self.generations)
             means = self.population.reporters.reporters[1].get_fitness_mean()
             bests = self.population.reporters.reporters[1].get_fitness_stat(max)
@@ -63,18 +78,21 @@ class NeatGenerator:
                 self.means_list[generation].append(means[generation])
                 self.bests_list[generation].append(bests[generation])
 
-        means = []
-        means_confidence = []
-        bests = []
-        bests_confidence = []
-
         for generation in range(generations_per_run):
-            means.append(np.mean(self.means_list[generation]))
-            means_confidence.append(np.std(self.means_list[generation]))
-            bests.append(np.mean(self.bests_list[generation]))
-            bests_confidence.append(np.std(self.bests_list[generation]))
+            self.neat_metrics['Mean Novelty'].append(np.mean(self.means_list[generation]))
+            self.neat_metrics['Mean Novelty confidence'].append(np.std(self.means_list[generation]))
+            self.neat_metrics['Best Novelty'].append(np.mean(self.bests_list[generation]))
+            self.neat_metrics['Best Novelty confidence'].append(np.std(self.bests_list[generation]))
+            self.neat_metrics['Node Complexity'].append(np.mean(self.node_complexity[generation]))
+            self.neat_metrics['Node Complexity confidence'].append(np.std(self.node_complexity[generation]))
+            self.neat_metrics['Connection Complexity'].append(np.mean(self.connection_complexity[generation]))
+            self.neat_metrics['Connection Complexity confidence'].append(np.std(self.connection_complexity[generation]))
+            self.neat_metrics['Archive Size'].append(np.mean(self.archive_size[generation]))
+            self.neat_metrics['Archive Size confidence'].append(np.std(self.archive_size[generation]))
+            self.neat_metrics['Species Count'].append(np.mean(self.species_count[generation]))
+            self.neat_metrics['Species Count confidence'].append(np.std(self.species_count[generation]))
 
-        return self.phase_best_fit, means, means_confidence, bests, bests_confidence, self.phase_best_genomes
+        return self.phase_best_fit, self.phase_best_genomes, self.neat_metrics
 
     def novelty_search_parallel(self, genomes, config):
         """
@@ -93,11 +111,28 @@ class NeatGenerator:
         lattices = {}
         remove = []
 
+        node_complexity = 1
+        connection_complexity = 1
+
+        for id, individual in self.population.population.items():
+            node_complexity = np.mean([node_complexity, individual.size()[0]])
+            connection_complexity = np.mean([connection_complexity, individual.size()[1]])
+
+        self.node_complexity[self.current_gen].append(node_complexity)
+        self.connection_complexity[self.current_gen].append(connection_complexity)
+        self.archive_size[self.current_gen].append(len(self.archive))
+        self.archive_size[self.current_gen].append(len(self.population.species.species))
+
+        print('Custom NEAT Metrics:')
+        print("Average Hidden Layer Size: {:2.2f}".format(node_complexity))
+        print("Average Connection Count: {:2.2f}".format(connection_complexity))
+        print("Size of the Novelty Archive: {:d}".format(len(self.archive)))
+
         metrics_this_run = {"Lattice Stability": {}, "Building Area": {}, "Building Volume": {},
                             "Bounding Box Volume": {}, "Interior Volume": {}, "Depth Middle": {}, "Width Middle": {}}
 
         start = time.time()
-        print("(CPU x " + str(thread_count) + "): Generating lattices and applying filters...", end="")
+        print("\n(CPU x " + str(thread_count) + "): Generating lattices and applying filters...", end="")
         for genome_id, genome in genomes:
             jobs.append(pool.apply_async(generate_lattice, (genome_id, genome, config, False, None)))
         for job, (genome_id, genome) in zip(jobs, genomes):
@@ -107,8 +142,8 @@ class NeatGenerator:
                 genome.fitness = 0
             else:
                 lattices.update(key_pair)
-                for key in metrics_this_run.keys():
-                    metrics_this_run[key].update({genome_id: metrics[key]})
+                """for key in metrics_this_run.keys():
+                    metrics_this_run[key].update({genome_id: metrics[key]})"""
 
         print("Done! (", np.round(time.time() - start, 2), "seconds ).")
 
@@ -123,7 +158,7 @@ class NeatGenerator:
         start = time.time()
         print("(CPU x " + str(thread_count) + "): Starting novelty search on compressed population...", end="")
         for genome_id in self.compressed_population.keys():
-            parameters = (genome_id, self.compressed_population, self.neighbors, self.compressed_length, self.archive)
+            parameters = (genome_id, self.compressed_population, self.neighbors, self.archive)
             jobs.append(pool.apply_async(novelty_search, parameters))
         for job, genome_id in zip(jobs, self.compressed_population.keys()):
             self.population.population[genome_id].fitness = job.get()
@@ -134,18 +169,18 @@ class NeatGenerator:
                    fitness.fitness > 0}
         sorted_keys = [k for k, _ in sorted(fitness.items(), key=lambda item: item[1])]
 
-        for individual in range(add_to_archive):
+        for individual in range(np.min([add_to_archive, len(lattices)])):
             lattice = lattices[sorted_keys[-individual]]
             vector = self.encoder.predict(lattice[None])[0]
             if len(self.archive) == 0 or not (vector == list(self.archive.values())).all(1).any():
                 self.archive.update({sorted_keys[-individual]: vector})
 
-        """if self.current_gen % 10 == 0 or self.current_gen +1 == self.generations:
+        if self.current_gen % 10 == 0 or self.current_gen +1 == self.generations:
             most_novel_lattice = lattices[sorted_keys[-1]]
             least = lattices[sorted_keys[0]]
             mid = lattices[sorted_keys[int(len(sorted_keys) / 2)]]
             novelty_voxel_plot([convert_to_integer(least), convert_to_integer(mid), convert_to_integer(most_novel_lattice)],
-                               self.current_gen + 1)"""
+                               self.current_gen + 1)
 
         """jobs.clear()
         for genome_id, lattice in lattices.items():
@@ -163,7 +198,8 @@ class NeatGenerator:
             for individual in range(best_fit_count):
                 lattice = lattices[sorted_keys[-individual]]
                 self.phase_best_fit.append(lattice)
-                self.phase_best_genomes.update({len(self.phase_best_genomes): self.population.population[sorted_keys[-individual]]})
+                self.phase_best_genomes.update(
+                    {len(self.phase_best_genomes): self.population.population[sorted_keys[-individual]]})
 
         for key in remove:
             del self.population.population[key]
@@ -179,7 +215,7 @@ def voxel_based_diversity(genome_id, lattice, lattices):
     return {genome_id: pixel_diversity}
 
 
-def novelty_search(genome_id, compressed_population, k, compressed_length, archive):
+def novelty_search(genome_id, compressed_population, k, archive):
     """
     Computes the novelty score for the given genome with respect to the current population and
     an archive of past novel individuals for this run. The score is the average euclidean distance
@@ -188,14 +224,13 @@ def novelty_search(genome_id, compressed_population, k, compressed_length, archi
     :param genome_id: the ID of the genome being assessed.
     :param compressed_population: the population of latent vectors to compare to.
     :param k: the number of nearest neighbors to average over when calculating the final score.
-    :param compressed_length: the length of the compressed representation.
     :param archive: the archive of past novel individuals for this run.
     :return: the novelty score for this genome.
     """
     distances = []
     for neighbour in list(compressed_population.values()) + list(archive.values()):
         distance = 0
-        for element in range(compressed_length):
+        for element in range(len(neighbour)):
             distance += np.square(compressed_population[genome_id][element] - neighbour[element])
         distances.append(np.sqrt(distance))
     return np.round(np.average(distances[:k]), 2)
@@ -216,7 +251,8 @@ def generate_lattice(genome_id, genome, config, noise_flag=True, plot=None):
     noisy = np.zeros(lattice_dimensions)
 
     for (x, y, z) in value_range:
-        lattice[x][y][z] = np.round(net.activate((x / lattice_dimensions[0], y / lattice_dimensions[0], z / lattice_dimensions[0]))[0])
+        lattice[x][y][z] = np.round(
+            net.activate((x / lattice_dimensions[0], y / lattice_dimensions[0], z / lattice_dimensions[0]))[0])
     feasible, lattice, metrics = apply_constraints(lattice)
     if noise_flag:
         noisy = add_noise(lattice)
@@ -266,11 +302,12 @@ def create_population_lattices(config, noise_flag=True):
     lattices = []
     noisy = []
     while len(lattices) < best_fit_count * runs_per_phase:
-        population = create_population(config, round((best_fit_count * runs_per_phase - len(lattices)) * 1.75))
+        population = create_population(config, round((best_fit_count * runs_per_phase - len(lattices)) * 2))
         noisy_batch, lattice_batch, _ = generate_lattices(population.population.values(), config, noise_flag)
         lattices += lattice_batch
         if noise_flag:
             noisy += noisy_batch
+        print("{:d} lattices created!".format(len(lattices)))
     return np.asarray(lattices[:best_fit_count * runs_per_phase]), np.asarray(noisy[:best_fit_count * runs_per_phase])
 
 
@@ -317,5 +354,5 @@ def cluster_analysis(population, metrics, title, axis_labels, config):
     plt.xlabel(axis_labels[0])
     plt.ylabel(axis_labels[1])
     plt.title(title)
-    plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Clustering_"+str(time.time())+".png")
+    plt.savefig("./Delenox_Experiment_Data/Run" + str(current_run) + "/Clustering_" + str(time.time()) + ".png")
     plt.show()

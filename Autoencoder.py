@@ -47,7 +47,7 @@ def create_auto_encoder(compressed_length, model_type, population=None):
         test_noisy = np.load("Training_Materials_noisy.npy")
 
     history = ae.fit(x=training_noisy, y=training, epochs=no_epochs,
-                     batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True, verbose=1)
+                     batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True)
     visualize_training(history)
 
     # save_model(encoder_model, "material_encoder_256")
@@ -277,7 +277,7 @@ def test_accuracy(encoder, decoder, test):
         integer_reconstruct = convert_to_integer(reconstructed)
         error.append(calculate_error(lattice, integer_reconstruct))
         # auto_encoder_plot(lattice, compressed, integer_reconstruct, error[-1])
-    np.save(str(np.mean(error))+".npy", np.mean(error))
+    return np.mean(error)
 
 
 def calculate_error(original, reconstruction):
