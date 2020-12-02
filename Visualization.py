@@ -5,19 +5,17 @@ import numpy as np
 from Delenox_Config import current_run, runs_per_phase
 
 
-def plot_statistics(metrics, keys, current_run):
-
-    for key in keys:
-        plt.figure()
-        plt.title("{} vs Generation over {:d} Runs.".format(key, runs_per_phase))
-        plt.xlabel("Generation")
-        plt.ylabel(key)
-        plt.errorbar(x=range(len(metrics[key])),
-                     y=metrics[key],
-                     yerr=metrics[key + ' confidence'],
-                     fmt='-o')
-        plt.grid()
-        plt.savefig("./Delenox_Experiment_Data/Run{}/Stats_{}.png".format(current_run, key))
+def plot_statistics(values, confidence, key, phase):
+    plt.figure()
+    plt.title("{} vs Generation over {:d} Runs.".format(key, runs_per_phase))
+    plt.xlabel("Generation")
+    plt.ylabel(key)
+    plt.errorbar(x=range(len(values)),
+                 y=values,
+                 yerr=confidence,
+                 fmt='-o')
+    plt.grid()
+    plt.savefig("./Delenox_Experiment_Data/Phase{}/{}_Stats.png".format(phase, key))
 
 
 def voxel_plot(lattice, title, filename=None):
@@ -34,7 +32,7 @@ def voxel_plot(lattice, title, filename=None):
         plt.show()
 
 
-def novelty_voxel_plot(lattices, generation):
+def novelty_voxel_plot(lattices, generation, population_id):
     fig = plt.figure(figsize=(15, 6))
     fig.tight_layout(pad=3)
     titles = ["Least Novel", "Mid-Level Novel", "Most Novel"]
@@ -44,7 +42,7 @@ def novelty_voxel_plot(lattices, generation):
         ax.set_title(titles[number - 1])
         ax = fig.gca(projection='3d')
         ax.voxels(lattices[number - 1], edgecolor="k", facecolors=get_color_map(lattices[number - 1]))
-    plt.savefig("./Delenox_Experiment_Data/Run{}/Lattices_{:f}.png".format(current_run, time.time()))
+    plt.savefig("./Delenox_Experiment_Data/Phase{}/Lattices_{:d}.png".format(current_run, population_id))
     # np.save("./Generated_Database/Least_Novel_" + str(time.time()) + ".npy", lattices[0])
     # np.save("./Generated_Database/Mid_Novel_" + str(time.time()) + ".npy", lattices[1])
     # np.save("./Generated_Database/Most_Novel_" + str(time.time()) + ".npy", lattices[2])
@@ -118,10 +116,11 @@ def get_color_map(lattice):
     return color
 
 
-def visualize_training(history):
+def visualize_training(history, phase):
     """
 
     :param history:
+    :param phase:
     """
     plt.figure()
     plt.plot(history.history['categorical_accuracy'])
@@ -130,5 +129,5 @@ def visualize_training(history):
     plt.ylabel('Categorical Accuracy')
     plt.xlabel('Epoch')
     plt.legend(['Training Set', 'Validation_Set'], loc='upper left')
-    plt.savefig("./Delenox_Experiment_Data/Run{}/Training_History.png".format(current_run))
+    plt.savefig("./Delenox_Experiment_Data/Phase{}/Training_History.png".format(phase))
 

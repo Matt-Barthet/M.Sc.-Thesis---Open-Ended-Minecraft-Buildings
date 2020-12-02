@@ -5,7 +5,8 @@ from keras.layers import Dense, Flatten, Reshape, Input, Conv2D, Conv2DTranspose
 from keras.models import Sequential, Model
 from sklearn.model_selection import train_test_split
 from tensorflow.python.keras.models import model_from_json
-from Delenox_Config import lattice_dimensions, batch_size, no_epochs, thread_count, value_range, current_run
+from Delenox_Config import lattice_dimensions, batch_size, no_epochs, thread_count, value_range, current_run, \
+    compressed_length
 from Visualization import auto_encoder_plot, visualize_training
 
 
@@ -19,12 +20,13 @@ def update_auto_encoder(ae, population):
     return ae
 
 
-def create_auto_encoder(compressed_length, model_type, population=None):
+def create_auto_encoder(model_type, phase, population, noisy=None):
     """
     Function to create and train a de-noising auto-encoder to compress 3D lattices
     into a 1D latent vector representation.
 
-    :param compressed_length: length of the compressed representation
+    :param phase:
+    :param noisy:
     :param model_type: type of auto-encoder to create (2D vs 3D)
     :param population: population of lattices to train the model on (given when performing Delenox)
     :return: the generated encoder and decoder models
@@ -37,21 +39,18 @@ def create_auto_encoder(compressed_length, model_type, population=None):
     # Compiling the AE and fitting it using the noisy population as input and the original population as the target
     ae.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['categorical_accuracy', 'binary_accuracy'])
 
+    if noisy is None:
+        noisy = add_noise_parallel(population)
+
     # If the function is given a population of lattices, create a set of noisy variants and partition into train-test.
-    if population is not None:
-        training_noisy, test_noisy, training, test = train_test_split(population[1], population[0], test_size=0.2, random_state=29)
-    else:
-        test = np.load("Training_Materials.npy")
-        training = np.load("Test_Materials.npy")
-        training_noisy = np.load("Test_Materials_Noisy.npy")
-        test_noisy = np.load("Training_Materials_noisy.npy")
+    training_noisy, test_noisy, training, test = train_test_split(noisy, population, test_size=0.2, random_state=29)
 
     history = ae.fit(x=training_noisy, y=training, epochs=no_epochs,
                      batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True)
-    visualize_training(history)
+    visualize_training(history, phase)
 
-    # save_model(encoder_model, "material_encoder_256")
-    # save_model(decoder_model, "material_decoder_256")
+    save_model(encoder_model, "./Delenox_Experiment_Data/Phase{:d}/encoder".format(phase))
+    save_model(decoder_model, "./Delenox_Experiment_Data/Phase{:d}/decoder".format(phase))
 
     return ae, encoder_model, decoder_model
 
@@ -184,9 +183,9 @@ def save_model(model, name):
     :param name: desired file name.
     """
     model_json = model.to_json()
-    with open("./Autoencoder_Models/" + name + ".json", "w") as json_file:
+    with open(name + ".json", "w+") as json_file:
         json_file.write(model_json)
-    model.save_weights("Autoencoder_Models/" + name  + ".h5")
+    model.save_weights(name + ".h5")
     print("Saved " + name + " model to disk.")
 
 
@@ -196,12 +195,12 @@ def load_model(name):
     :param name: file name of the desired model
     :return: loaded model.
     """
-    json_file = open("Autoencoder_Models/" + name + '.json', 'r')
+    json_file = open(name + '.json', 'r')
     loaded_model_json = json_file.read()
     json_file.close()
     loaded_model = model_from_json(loaded_model_json)
-    loaded_model.load_weights("Autoencoder_Models/" + name + ".h5")
-    print("Loaded model " + name + " from disk.")
+    loaded_model.load_weights(name + ".h5")
+    # print("Loaded model " + name + " from disk.")
     return loaded_model
 
 
