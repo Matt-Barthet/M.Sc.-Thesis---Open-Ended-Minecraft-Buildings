@@ -1,7 +1,7 @@
 import os
 import sys
+from multiprocessing import Process, Queue
 from multiprocessing import Pool
-from multiprocessing.context import Process
 
 import neat
 from sklearn.decomposition import PCA
@@ -33,8 +33,16 @@ if __name__ == '__main__':
                          neat.DefaultStagnation, config_path)
     config.genome_config.add_activation('sin_adjusted', sinc)
 
+    encoders = []
+    decoders = []
+    populations = []
+
+    training_population, _ = create_population_lattices(config, False)
+
     # Initialise a set of neat populations that will be evolved in the Exploration Phases.
     neat_generators = []
+    processes = []
+
     for runs in range(runs_per_phase):
         neat_generators.append(NeatGenerator(
             config=config,
@@ -42,16 +50,14 @@ if __name__ == '__main__':
             population_id=runs
         ))
 
-    training_population, _ = create_population_lattices(config, False)
-
     for phase in range(0, number_of_phases):
-        """
-        Transformation Phase:
+        """Transformation Phase:
             Retrieve the most novel X individuals from each population from the previous exploration phase, 
             and train an autoencoder on them. The training population and trained model are saved to disk 
             as part of the experiment results.
         Note: A noisy copy of the training population are used as input for training.
         """
+        training_population = np.asarray(training_population)
         ae, encoder, decoder = create_auto_encoder(model_type=auto_encoder_3d,
                                                    phase=phase,
                                                    population=training_population,
@@ -59,10 +65,6 @@ if __name__ == '__main__':
 
         np.save("./Delenox_Experiment_Data/Phase{:d}/Training_Set.npy".format(phase),
                 np.asarray(training_population))
-
-        print(sys.getsizeof(ae))
-        print(sys.getsizeof(encoder))
-        print(sys.getsizeof(decoder))
 
         training_population = list(training_population)
         training_population.clear()
@@ -76,13 +78,28 @@ if __name__ == '__main__':
                         'Species Count': [],
                         }
 
-        process = Process(target=neat_generators[0].run_neat, args=(phase,))
-        process.start()
-        process.join()
+        processes = []
+        queues = []
 
+        for runs in range(runs_per_phase):
+            queues.append(Queue())
+            processes.append(Process(target=neat_generators[runs].run_neat, args=(phase, queues[runs])))
+            processes[runs].start()
+
+        for queue in queues:
+            (generator, best_fit, metrics) = queue.get()
+            neat_generators[generator.population_id] = generator
+            training_population += list(best_fit)
+            for key in metrics.keys():
+                neat_metrics[key].append(metrics[key])
+
+        for process in processes:
+            process.join()
+            process.terminate()
+
+        # Visualize the data retrieved for the exploration phase.
         for key in neat_metrics.keys():
             neat_metrics[key] = np.stack((neat_metrics[key]), axis=-1)
-            # Visualize the data retrieved for the exploration phase.
             plot_statistics(
                 values=np.mean(neat_metrics[key], axis=-1),
                 confidence=np.std(neat_metrics[key], axis=-1),
@@ -90,78 +107,79 @@ if __name__ == '__main__':
                 phase=phase
             )
 
-        plt.figure()
-        plt.title("PCA Analysis of Compressed Buildings")
-        plt.xlabel("Component 1")
-        plt.ylabel("Component 2")
-        compressed = [[] for _ in range(len(autoencoders))]
-        for model in range(len(autoencoders)):
-            for lattice in next_population:
-                compressed[model].append(autoencoders[model]['encoder'].predict(lattice[None])[0])
-            pca = PCA(n_components=2)
-            principalComponents = pca.fit_transform(compressed[model])
-            principalDf = pd.DataFrame(data=principalComponents, columns=['1', '2'])
-            plt.scatter(principalDf['1'], principalDf['2'], cmap=[model] * len(principalDf), s=10, label="AE Phase {:d}".format(phase))
-            plt.legend()
-        plt.savefig("./Delenox_Experiment_Data/Phase{}/PCA.png".format(current_run))
-
-        errors = []
-        for model in range(len(autoencoders)):
-            error = test_accuracy(autoencoders[model]["encoder"], autoencoders[model]["decoder"],
-                                  rn.sample(list(next_population), 250))
-            errors.append(error)
-        plt.figure()
-        plt.bar(x=range(1, len(errors) + 1), height=errors)
-        plt.xlabel("Autoencoder from Phase")
-        plt.ylabel("Error %")
-        plt.title("Autoencoder Reconstruction Error on Latest Novel Batch")
-        plt.savefig("./Delenox_Experiment_Data/Phase{}/Error_Latest.png".format(current_run))
-
-        """eucl_averages = []
-        for model in range(len(autoencoders)):
-            average = 0
-            for vector in compressed[model]:
-                for other in compressed[model]:
-                    dist = np.linalg.norm(vector - other)
-                    average = np.mean([average, dist])
-            eucl_averages.append(average)
-        plt.figure()
-        plt.bar(x=range(1, len(eucl_averages) + 1), height=eucl_averages)
-        plt.xlabel("Autoencoder from Phase")
-        plt.ylabel("Euclidean Distance")
-        plt.title("Average Euclidean Distance (Vectors) on latest Novel Batch")
-        plt.savefig("./Delenox_Experiment_Data/Run{}/Eucl_Latest.png".format(current_run))"""
-
-        """inital_compressed = [[] for _ in range(len(autoencoders))]
-        eucl_averages = []
-        for model in range(len(autoencoders)):
-            for lattice in initial_population:
-                inital_compressed[model].append(autoencoders[model]['encoder'].predict(lattice[None])[0])
-            average = 0
-            for vector in inital_compressed[model]:
-                for other in compressed[model]:
-                    dist = np.linalg.norm(vector - other)
-                    average = np.mean([average, dist])
-            eucl_averages.append(average)
-        plt.figure()
-        plt.bar(x=range(1, len(eucl_averages) + 1), height=eucl_averages)
-        plt.xlabel("Autoencoder from Phase")
-        plt.ylabel("Euclidean Distance")
-        plt.title("Average Euclidean Distance (Vectors) on Initial Population")
-        plt.savefig("./Delenox_Experiment_Data/Run{}/Eucl_Initial.png".format(current_run))"""
-
-        """errors = []
-        for model in range(len(autoencoders)):
-            error = test_accuracy(autoencoders[model]["encoder"], autoencoders[model]["decoder"],
-                                  rn.sample(list(initial_population), 250))
-            errors.append(error)
-        plt.figure()
-        plt.bar(x=range(1, len(errors) + 1), height=errors)
-        plt.xlabel("Autoencoder from Phase")
-        plt.ylabel("Error %")
-        plt.title("Autoencoder Reconstruction Error on Initial Population")
-        plt.savefig("./Delenox_Experiment_Data/Run{}/Error_Initial.png".format(current_run))"""
-
+        np.save("./Delenox_Experiment_Data/Phase{:d}/Metrics.npy".format(phase), neat_metrics)
         current_run += 1
 
-    # np.save("./Novelty_Experiments/Neat_Experiment_No_Constraints.npy", np.asarray([neat_means, neat_means_std, neat_bests, neat_bests_std]))
+    """plt.figure()
+    plt.title("PCA Analysis of Compressed Buildings")
+    plt.xlabel("Component 1")
+    plt.ylabel("Component 2")
+    compressed = [[] for _ in range(len(autoencoders))]
+    for model in range(len(autoencoders)):
+        for lattice in next_population:
+            compressed[model].append(autoencoders[model]['encoder'].predict(lattice[None])[0])
+        pca = PCA(n_components=2)
+        principalComponents = pca.fit_transform(compressed[model])
+        principalDf = pd.DataFrame(data=principalComponents, columns=['1', '2'])
+        plt.scatter(principalDf['1'], principalDf['2'], cmap=[model] * len(principalDf), s=10, label="AE Phase {:d}".format(phase))
+        plt.legend()
+    plt.savefig("./Delenox_Experiment_Data/Phase{}/PCA.png".format(current_run))
+
+    errors = []
+    for model in range(len(autoencoders)):
+        error = test_accuracy(autoencoders[model]["encoder"], autoencoders[model]["decoder"],
+                              rn.sample(list(next_population), 250))
+        errors.append(error)
+    plt.figure()
+    plt.bar(x=range(1, len(errors) + 1), height=errors)
+    plt.xlabel("Autoencoder from Phase")
+    plt.ylabel("Error %")
+    plt.title("Autoencoder Reconstruction Error on Latest Novel Batch")
+    plt.savefig("./Delenox_Experiment_Data/Phase{}/Error_Latest.png".format(current_run))
+"""
+    """eucl_averages = []
+    for model in range(len(autoencoders)):
+        average = 0
+        for vector in compressed[model]:
+            for other in compressed[model]:
+                dist = np.linalg.norm(vector - other)
+                average = np.mean([average, dist])
+        eucl_averages.append(average)
+    plt.figure()
+    plt.bar(x=range(1, len(eucl_averages) + 1), height=eucl_averages)
+    plt.xlabel("Autoencoder from Phase")
+    plt.ylabel("Euclidean Distance")
+    plt.title("Average Euclidean Distance (Vectors) on latest Novel Batch")
+    plt.savefig("./Delenox_Experiment_Data/Run{}/Eucl_Latest.png".format(current_run))"""
+
+    """inital_compressed = [[] for _ in range(len(autoencoders))]
+    eucl_averages = []
+    for model in range(len(autoencoders)):
+        for lattice in initial_population:
+            inital_compressed[model].append(autoencoders[model]['encoder'].predict(lattice[None])[0])
+        average = 0
+        for vector in inital_compressed[model]:
+            for other in compressed[model]:
+                dist = np.linalg.norm(vector - other)
+                average = np.mean([average, dist])
+        eucl_averages.append(average)
+    plt.figure()
+    plt.bar(x=range(1, len(eucl_averages) + 1), height=eucl_averages)
+    plt.xlabel("Autoencoder from Phase")
+    plt.ylabel("Euclidean Distance")
+    plt.title("Average Euclidean Distance (Vectors) on Initial Population")
+    plt.savefig("./Delenox_Experiment_Data/Run{}/Eucl_Initial.png".format(current_run))"""
+
+    """errors = []
+    for model in range(len(autoencoders)):
+        error = test_accuracy(autoencoders[model]["encoder"], autoencoders[model]["decoder"],
+                              rn.sample(list(initial_population), 250))
+        errors.append(error)
+    plt.figure()
+    plt.bar(x=range(1, len(errors) + 1), height=errors)
+    plt.xlabel("Autoencoder from Phase")
+    plt.ylabel("Error %")
+    plt.title("Autoencoder Reconstruction Error on Initial Population")
+    plt.savefig("./Delenox_Experiment_Data/Run{}/Error_Initial.png".format(current_run))"""
+
+    #

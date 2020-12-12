@@ -32,7 +32,7 @@ def voxel_plot(lattice, title, filename=None):
         plt.show()
 
 
-def novelty_voxel_plot(lattices, generation, population_id):
+def novelty_voxel_plot(lattices, generation, population_id, phase):
     fig = plt.figure(figsize=(15, 6))
     fig.tight_layout(pad=3)
     titles = ["Least Novel", "Mid-Level Novel", "Most Novel"]
@@ -42,7 +42,7 @@ def novelty_voxel_plot(lattices, generation, population_id):
         ax.set_title(titles[number - 1])
         ax = fig.gca(projection='3d')
         ax.voxels(lattices[number - 1], edgecolor="k", facecolors=get_color_map(lattices[number - 1]))
-    plt.savefig("./Delenox_Experiment_Data/Phase{}/Lattices_{:d}.png".format(current_run, population_id))
+    plt.savefig("./Delenox_Experiment_Data/Phase{}/Lattices_{:d}_Gen{:d}.png".format(phase, population_id, generation))
     # np.save("./Generated_Database/Least_Novel_" + str(time.time()) + ".npy", lattices[0])
     # np.save("./Generated_Database/Mid_Novel_" + str(time.time()) + ".npy", lattices[1])
     # np.save("./Generated_Database/Most_Novel_" + str(time.time()) + ".npy", lattices[2])

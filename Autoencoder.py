@@ -228,7 +228,7 @@ def add_noise_parallel(lattices, name=None):
     :param name: name of the output file containing the noisy population.
     :return: the noisy population of lattices.
     """
-    pool = Pool(thread_count)
+    pool = Pool(15)
     jobs = []
     noisy_lattices = []
     for lattice in lattices:

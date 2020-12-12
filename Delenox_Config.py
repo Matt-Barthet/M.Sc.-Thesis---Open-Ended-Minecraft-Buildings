@@ -1,7 +1,7 @@
 import numpy as np
 
 # General Parameters
-thread_count = 2
+thread_count = 5
 number_of_phases = 10
 
 # Parameters for input space of un/compressed buildings
@@ -11,22 +11,21 @@ value_range = [(x, y, z) for x in range(lattice_dimensions[0]) for y in range(la
 
 # Auto-Encoder parameters for architecture and learning
 batch_size = 64
-no_epochs = 50
+no_epochs = 100
 compressed_length = 256
 loss_function = "categorical_crossentropy"
 accuracy_metrics = ['categorical_accuracy', 'binary_accuracy']
 
 # NEAT parameters for building generation and evolution
-runs_per_phase = 16
-population_size = 150
+runs_per_phase = thread_count
+population_size = 200
 best_fit_count = int(1000 / runs_per_phase)
-generations_per_run = 2
+generations_per_run = 100
 current_run = 0
 
 # Parameters for constrained novelty search in the NEAT module
-k_nearest_neighbors = 10
-add_to_archive = 5
-compressed_length = 256
+k_nearest_neighbors = 20
+add_to_archive = 3
 
 # Parameters for evolutionary algorithm using latent vector space
 latent_mutation_rate = 0.1

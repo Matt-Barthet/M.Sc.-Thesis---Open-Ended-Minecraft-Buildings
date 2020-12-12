@@ -19,6 +19,7 @@ class NeatGenerator:
     """
 
     def __init__(self, complexity, config, population_id):
+        self.current_phase = 0
         self.config = config
         self.config.__setattr__("pop_size", population_size)
         self.config.__getattribute__("genome_config").num_hidden = complexity
@@ -43,7 +44,7 @@ class NeatGenerator:
                              'Species Count': [],
                              }
 
-    def run_neat(self, phase_number):
+    def run_neat(self, phase_number, queue):
         """
         Executes one "exploration" phase of the Delenox pipeline.  A set number of independent evolutionary runs
         are completed and the top N most novel individuals are taken and inserted into a population.  At the of
@@ -51,16 +52,23 @@ class NeatGenerator:
         statistics regarding the evolution of the populations such as the speciation, novelty scores etc.
 
         :param phase_number:
+        :param queue:
         :return: the generated population of lattices and statistics variables from the runs of the phase.
         """
         self.current_gen = 0
-        self.archive.clear()
+        self.current_phase = phase_number
+        # self.archive.clear()
         self.encoder = load_model("./Delenox_Experiment_Data/Phase{:d}/encoder".format(phase_number))
         self.decoder = load_model("./Delenox_Experiment_Data/Phase{:d}/decoder".format(phase_number))
         self.population.run(self.novelty_search_parallel, generations_per_run)
         self.neat_metrics['Mean Novelty'] = self.population.reporters.reporters[0].get_fitness_mean()
         self.neat_metrics['Best Novelty'] = self.population.reporters.reporters[0].get_fitness_stat(max)
-        return self.phase_best_fit, self.neat_metrics
+        self.encoder = None
+        self.decoder = None
+
+        queue.put([self, self.phase_best_fit, self.neat_metrics])
+
+        return self, self.phase_best_fit, self.neat_metrics
 
     def novelty_search_parallel(self, genomes, config):
         """
@@ -72,6 +80,7 @@ class NeatGenerator:
         :param genomes: population of genomes to be evaluated.
         :param config: the NEAT-Python configuration file.
         """
+        start = time.time()
         compressed_population = {}
         lattices = {}
         remove = []
@@ -79,19 +88,33 @@ class NeatGenerator:
         metrics_this_run = {"Lattice Stability": {}, "Building Area": {}, "Building Volume": {},
                             "Bounding Box Volume": {}, "Interior Volume": {}, "Depth Middle": {}, "Width Middle": {}}
 
+        pool = Pool(2)
+        jobs = []
+
         for genome_id, genome in genomes:
-            lattice, _, feasible, metrics = generate_lattice(genome, config, False, None)
+            jobs.append(pool.apply_async(generate_lattice, (genome, config, False, None)))
+        for job, (genome_id, genome) in zip(jobs, genomes):
+            lattice, _, feasible, metrics = job.get()
             if not feasible:
                 remove.append(genome_id)
                 genome.fitness = 0
             else:
                 lattices.update({genome_id: lattice})
-                compressed_population.update({genome_id: self.encoder.predict(lattice[None])[0]})
                 """for key in metrics_this_run.keys():
                     metrics_this_run[key].update({genome_id: metrics[key]})"""
 
+        for genome_id, lattice in lattices.items():
+            compressed_population.update({genome_id: self.encoder.predict(lattice[None])[0]})
+
+        jobs.clear()
         for genome_id in compressed_population.keys():
-            self.population.population[genome_id].fitness = novelty_search(genome_id, compressed_population, self.archive)
+            parameters = (genome_id, compressed_population, self.archive)
+            jobs.append(pool.apply_async(novelty_search, parameters))
+        for job, genome_id in zip(jobs, compressed_population.keys()):
+            self.population.population[genome_id].fitness = job.get()
+
+        pool.close()
+        pool.join()
 
         fitness = {genome_id: fitness.fitness for genome_id, fitness in self.population.population.items() if
                    fitness.fitness > 0}
@@ -103,13 +126,14 @@ class NeatGenerator:
             if len(self.archive) == 0 or not (vector == list(self.archive.values())).all(1).any():
                 self.archive.update({sorted_keys[-individual]: vector})
 
-        if self.current_gen + 1 == generations_per_run:
+        if self.current_gen % 100 == 0 or self.current_gen + 1 == generations_per_run:
             most_novel_lattice = lattices[sorted_keys[-1]]
             least = lattices[sorted_keys[0]]
             mid = lattices[sorted_keys[int(len(sorted_keys) / 2)]]
             novelty_voxel_plot([convert_to_integer(least), convert_to_integer(mid), convert_to_integer(most_novel_lattice)],
-                               self.current_gen + 1, self.population_id)
-            for individual in range(best_fit_count):
+                               self.current_gen + 1, self.population_id, self.current_phase)
+        if self.current_gen + 1 == generations_per_run:
+            for individual in range(np.min([best_fit_count, len(lattices)])):
                 lattice = lattices[sorted_keys[-individual]]
                 self.phase_best_fit.append(lattice)
 
@@ -128,7 +152,7 @@ class NeatGenerator:
         self.neat_metrics['Archive Size'].append(len(self.archive))
         self.neat_metrics['Species Count'].append(len(self.population.species.species))
 
-        print("[Population {:d}]: running generation {:d}...".format(self.population_id, self.current_gen))
+        print("[Population {:d}]: Generation {:d} took {:2f} seconds.".format(self.population_id, self.current_gen, time.time() - start))
         print("Average Hidden Layer Size: {:2.2f}".format(node_complexity))
         print("Average Connection Count: {:2.2f}".format(connection_complexity))
         print("Size of the Novelty Archive: {:d}".format(len(self.archive)))
