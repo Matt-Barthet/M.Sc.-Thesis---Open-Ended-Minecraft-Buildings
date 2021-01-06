@@ -1,7 +1,7 @@
 import numpy as np
 
 # General Parameters
-thread_count = 5
+thread_count = 16
 number_of_phases = 10
 
 # Parameters for input space of un/compressed buildings
@@ -17,7 +17,7 @@ loss_function = "categorical_crossentropy"
 accuracy_metrics = ['categorical_accuracy', 'binary_accuracy']
 
 # NEAT parameters for building generation and evolution
-runs_per_phase = thread_count
+runs_per_phase = 10
 population_size = 200
 best_fit_count = int(1000 / runs_per_phase)
 generations_per_run = 100

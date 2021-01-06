@@ -44,7 +44,9 @@ class NeatGenerator:
                              'Species Count': [],
                              }
 
-    def run_neat(self, phase_number, queue):
+        self.pool = None
+
+    def run_neat(self, phase_number, queue=None):
         """
         Executes one "exploration" phase of the Delenox pipeline.  A set number of independent evolutionary runs
         are completed and the top N most novel individuals are taken and inserted into a population.  At the of
@@ -57,16 +59,20 @@ class NeatGenerator:
         """
         self.current_gen = 0
         self.current_phase = phase_number
-        # self.archive.clear()
         self.encoder = load_model("./Delenox_Experiment_Data/Phase{:d}/encoder".format(phase_number))
         self.decoder = load_model("./Delenox_Experiment_Data/Phase{:d}/decoder".format(phase_number))
+        self.pool = Pool(thread_count)
         self.population.run(self.novelty_search_parallel, generations_per_run)
+        self.pool.close()
+        self.pool.join()
+
         self.neat_metrics['Mean Novelty'] = self.population.reporters.reporters[0].get_fitness_mean()
         self.neat_metrics['Best Novelty'] = self.population.reporters.reporters[0].get_fitness_stat(max)
         self.encoder = None
         self.decoder = None
 
-        queue.put([self, self.phase_best_fit, self.neat_metrics])
+        if queue is not None:
+            queue.put([self, self.phase_best_fit, self.neat_metrics])
 
         return self, self.phase_best_fit, self.neat_metrics
 
@@ -88,11 +94,10 @@ class NeatGenerator:
         metrics_this_run = {"Lattice Stability": {}, "Building Area": {}, "Building Volume": {},
                             "Bounding Box Volume": {}, "Interior Volume": {}, "Depth Middle": {}, "Width Middle": {}}
 
-        pool = Pool(2)
         jobs = []
 
         for genome_id, genome in genomes:
-            jobs.append(pool.apply_async(generate_lattice, (genome, config, False, None)))
+            jobs.append(self.pool.apply_async(generate_lattice, (genome, config, False, None)))
         for job, (genome_id, genome) in zip(jobs, genomes):
             lattice, _, feasible, metrics = job.get()
             if not feasible:
@@ -109,12 +114,9 @@ class NeatGenerator:
         jobs.clear()
         for genome_id in compressed_population.keys():
             parameters = (genome_id, compressed_population, self.archive)
-            jobs.append(pool.apply_async(novelty_search, parameters))
+            jobs.append(self.pool.apply_async(novelty_search, parameters))
         for job, genome_id in zip(jobs, compressed_population.keys()):
             self.population.population[genome_id].fitness = job.get()
-
-        pool.close()
-        pool.join()
 
         fitness = {genome_id: fitness.fitness for genome_id, fitness in self.population.population.items() if
                    fitness.fitness > 0}
@@ -133,6 +135,7 @@ class NeatGenerator:
             novelty_voxel_plot([convert_to_integer(least), convert_to_integer(mid), convert_to_integer(most_novel_lattice)],
                                self.current_gen + 1, self.population_id, self.current_phase)
         if self.current_gen + 1 == generations_per_run:
+            np.save("./Delenox_Experiment_Data/Phase{:d}/Population_{:d}.npy".format(self.current_phase, self.population_id), lattices)
             for individual in range(np.min([best_fit_count, len(lattices)])):
                 lattice = lattices[sorted_keys[-individual]]
                 self.phase_best_fit.append(lattice)
@@ -229,7 +232,7 @@ def generate_lattices(genomes, config, noise_flag=True):
     :param config:
     :return:
     """
-    pool = Pool(15)
+    pool = Pool(thread_count)
     jobs = []
     lattices = []
     noisy = []
