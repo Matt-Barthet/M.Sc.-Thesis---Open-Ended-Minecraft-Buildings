@@ -118,9 +118,9 @@ if __name__ == '__main__':
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-    baseline = [np.load("./Baseline Experiment/Phase{}/Training_Set.npy".format(i))[:100] for i in range(7)]
-    latest_batch = [np.load("./Retrain AE (Latest Batch) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[:100] for i in range(7)]
-    full_history = [np.load("./Retrain AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-100:] for i in range(7)]
+    """baseline = [np.load("./Static Denoising AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[:100] for i in range(7)]
+    latest_batch = [np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[:100] for i in range(7)]
+    full_history = [np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-100:] for i in range(7)]"""
 
     # pca_buildings(full_history, range(7))
 
@@ -129,21 +129,33 @@ if __name__ == '__main__':
 
     #  voxel_plot(change_to_ones(convert_to_integer(pop[899])), "")
 
-    baseline_metrics = np.load("./Baseline Experiment/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-    latest_metrics = np.load("./Retrain AE (Latest Batch) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-    full_metrics = np.load("./Retrain AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-    key = "Archive Size"
+    baseline_metrics = np.load("./Static Denoising AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
+    latest_metrics = np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
+    full_metrics = np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
+    random_ae = np.load("./Random AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
+
+    key = "Best Novelty"
     indices = range(0, 700)
     plt.figure()
     plt.title("{} vs Generation over {:d} Runs.".format(key, 7))
     plt.xlabel("Generation")
     plt.ylabel(key)
+
     plt.errorbar(x=indices, y=np.mean(latest_metrics.item().get(key)[indices], axis=-1), fmt='-', label="Retrained AE (Latest Set)", alpha=1, color='red')
     plt.fill_between(x=indices, y1=np.mean(latest_metrics.item().get(key)[indices], axis=-1) + np.std(latest_metrics.item().get(key), axis=-1)[indices], y2=np.mean(latest_metrics.item().get(key)[indices], axis=-1) - np.std(baseline_metrics.item().get(key), axis=1), color='red', alpha=0.25)
     plt.errorbar(x=indices, y=np.mean(full_metrics.item().get(key)[indices], axis=-1)[indices], fmt='-', label="Retrained AE (Full History)", alpha=1, color='yellow')
     plt.fill_between(x=indices, y1=np.mean(full_metrics.item().get(key)[indices], axis=-1) + np.std(full_metrics.item().get(key), axis=-1)[indices], y2=np.mean(full_metrics.item().get(key)[indices], axis=-1) - np.std(full_metrics.item().get(key), axis=1), color='yellow', alpha=0.25)
-    plt.errorbar(x=indices, y=np.mean(baseline_metrics.item().get(key)[indices], axis=-1), fmt='-', label="Baseline - Static AE", alpha=1, color='blue')
+    plt.errorbar(x=indices, y=np.mean(baseline_metrics.item().get(key)[indices], axis=-1), fmt='-', label="Static Denoising AE", alpha=1, color='blue')
     plt.fill_between(x=indices, y1=np.mean(baseline_metrics.item().get(key)[indices], axis=-1) + np.std(baseline_metrics.item().get(key), axis=-1)[indices], y2=np.mean(baseline_metrics.item().get(key)[indices], axis=-1) - np.std(baseline_metrics.item().get(key), axis=1), color='blue', alpha=0.25)
+
+    plt.errorbar(x=indices, y=np.mean(random_ae.item().get(key)[indices], axis=-1), fmt='-',
+                 label="Random AE", alpha=1, color='green')
+    plt.fill_between(x=indices, y1=np.mean(random_ae.item().get(key)[indices], axis=-1) +
+                                   np.std(random_ae.item().get(key), axis=-1)[indices],
+                     y2=np.mean(random_ae.item().get(key)[indices], axis=-1) - np.std(
+                         random_ae.item().get(key), axis=1), color='green', alpha=0.25)
+
+
     plt.grid()
     plt.legend(loc=2)
     plt.show()
