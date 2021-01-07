@@ -1,15 +1,13 @@
 import os
-from multiprocessing import Pool
 
 import matplotlib.pyplot as plt
 import numpy as np
-import tensorflow as tf
 import pandas as pd
+import tensorflow as tf
 from sklearn.decomposition import PCA
+
 from Autoencoder import load_model, convert_to_integer, test_accuracy
-from Constraints import change_to_ones
 from Delenox_Config import value_range
-from Visualization import voxel_plot
 
 
 def pca_buildings(populations, phases):
@@ -111,6 +109,36 @@ def lattice_dviersity(lattice, population):
     return np.average(diversities)
 
 
+def plot_metric(metric_list, labels, colors, key):
+    plt.figure()
+    plt.title("{} vs Generation over {:d} Runs.".format(key, 7))
+    plt.xlabel("Generation")
+    plt.ylabel(key)
+
+    for counter in range(len(metric_list)):
+        metric = metric_list[counter].item().get(key)
+        generations = range(len(metric))
+
+        # Plotting the mean of given metric over generations
+        plt.errorbar(x=generations,
+                     y=np.mean(metric[generations], axis=-1),
+                     fmt='-',
+                     label=labels[counter],
+                     alpha=1,
+                     color=colors[counter])
+
+        # Filling the deviation from the mean in a translucent color.
+        plt.fill_between(x=generations,
+                         y1=np.mean(metric[generations], axis=-1) + np.std(metric, axis=-1)[generations],
+                         y2=np.mean(metric[generations], axis=-1) - np.std(metric, axis=1)[generations],
+                         color=colors[counter],
+                         alpha=0.25)
+
+    plt.grid()
+    plt.legend(loc=2)
+    plt.show()
+
+
 if __name__ == '__main__':
 
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
@@ -118,47 +146,27 @@ if __name__ == '__main__':
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-    """baseline = [np.load("./Static Denoising AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[:100] for i in range(7)]
+    baseline = [np.load("./Static Denoising AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[:100] for i in range(7)]
     latest_batch = [np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[:100] for i in range(7)]
-    full_history = [np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-100:] for i in range(7)]"""
+    full_history = [np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-100:] for i in range(7)]
+    random = [np.load("./Random AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-100:] for i in range(7)]
 
     # pca_buildings(full_history, range(7))
 
     # pop = np.load("Training_Set.npy", allow_pickle=True)
     # print(pop.shape)
 
-    #  voxel_plot(change_to_ones(convert_to_integer(pop[899])), "")
-
     baseline_metrics = np.load("./Static Denoising AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
     latest_metrics = np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
     full_metrics = np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
     random_ae = np.load("./Random AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
 
-    key = "Best Novelty"
-    indices = range(0, 700)
-    plt.figure()
-    plt.title("{} vs Generation over {:d} Runs.".format(key, 7))
-    plt.xlabel("Generation")
-    plt.ylabel(key)
+    metrics = [latest_metrics, full_metrics, baseline_metrics, random_ae]
+    labels = ["Retrained DAE (Latest Set)", "Retrained DAE (Full History)", "Static DAE", "Random AE"]
+    colors = ['red', 'yellow', 'blue', 'green']
+    key = "Node Complexity"
 
-    plt.errorbar(x=indices, y=np.mean(latest_metrics.item().get(key)[indices], axis=-1), fmt='-', label="Retrained AE (Latest Set)", alpha=1, color='red')
-    plt.fill_between(x=indices, y1=np.mean(latest_metrics.item().get(key)[indices], axis=-1) + np.std(latest_metrics.item().get(key), axis=-1)[indices], y2=np.mean(latest_metrics.item().get(key)[indices], axis=-1) - np.std(baseline_metrics.item().get(key), axis=1), color='red', alpha=0.25)
-    plt.errorbar(x=indices, y=np.mean(full_metrics.item().get(key)[indices], axis=-1)[indices], fmt='-', label="Retrained AE (Full History)", alpha=1, color='yellow')
-    plt.fill_between(x=indices, y1=np.mean(full_metrics.item().get(key)[indices], axis=-1) + np.std(full_metrics.item().get(key), axis=-1)[indices], y2=np.mean(full_metrics.item().get(key)[indices], axis=-1) - np.std(full_metrics.item().get(key), axis=1), color='yellow', alpha=0.25)
-    plt.errorbar(x=indices, y=np.mean(baseline_metrics.item().get(key)[indices], axis=-1), fmt='-', label="Static Denoising AE", alpha=1, color='blue')
-    plt.fill_between(x=indices, y1=np.mean(baseline_metrics.item().get(key)[indices], axis=-1) + np.std(baseline_metrics.item().get(key), axis=-1)[indices], y2=np.mean(baseline_metrics.item().get(key)[indices], axis=-1) - np.std(baseline_metrics.item().get(key), axis=1), color='blue', alpha=0.25)
-
-    plt.errorbar(x=indices, y=np.mean(random_ae.item().get(key)[indices], axis=-1), fmt='-',
-                 label="Random AE", alpha=1, color='green')
-    plt.fill_between(x=indices, y1=np.mean(random_ae.item().get(key)[indices], axis=-1) +
-                                   np.std(random_ae.item().get(key), axis=-1)[indices],
-                     y2=np.mean(random_ae.item().get(key)[indices], axis=-1) - np.std(
-                         random_ae.item().get(key), axis=1), color='green', alpha=0.25)
-
-
-    plt.grid()
-    plt.legend(loc=2)
-    plt.show()
+    plot_metric(metrics, labels, colors, key)
 
     """diversity = []
     for population in full_history:
@@ -171,9 +179,5 @@ if __name__ == '__main__':
             pop_diversity.append(job.get())
         diversity.append(np.mean(pop_diversity))
         print(diversity)"""
-
-    """
-
-    """
 
 
