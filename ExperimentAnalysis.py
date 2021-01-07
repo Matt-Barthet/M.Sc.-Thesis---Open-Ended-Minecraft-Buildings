@@ -1,4 +1,5 @@
 import os
+from multiprocessing import Pool
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,14 +17,19 @@ def pca_buildings(populations, phases):
     plt.xlabel("Component 1")
     plt.ylabel("Component 2")
 
-    eucl_averages = []
-
-    pca = PCA(n_components=2)
     fit = []
-    for lattice in populations[-1]:
-        fit.append(convert_to_integer(lattice).ravel())
-    pca.fit(fit)
+    for experiment in populations:
+        for population in experiment:
+            for lattice in population:
+                results.append(pool.apply_async(convert_to_integer, (np.asarray(lattice), )))
 
+    for result in results:
+        fit.append(result.get().ravel())
+        print(len(fit))
+
+    pca = PCA(n_components=2).fit(fit)
+
+    eucl_averages = []
     offsets = []
     for model in range(7):
         if model <= 1:
@@ -33,7 +39,7 @@ def pca_buildings(populations, phases):
             offset += list(range(i * model * 100 - 100, i * model * 100))
         offsets.append(offset)
 
-    for model in [0, 6]:
+    for model in phases:
 
         lattices = []
 
@@ -64,6 +70,7 @@ def pca_buildings(populations, phases):
     plt.ylabel("Average Euclidean Distance (PCA Values)")
     plt.title("Average Distance of PCA Values from each Exploration Phase")
     plt.show()
+
 
 def accuracy_plot(populations):
     errors = []
@@ -141,17 +148,20 @@ def plot_metric(metric_list, labels, colors, key):
 
 if __name__ == '__main__':
 
+    pool = Pool(14)
+    results = []
+
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-    baseline = [np.load("./Static Denoising AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[:100] for i in range(7)]
-    latest_batch = [np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[:100] for i in range(7)]
-    full_history = [np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-100:] for i in range(7)]
-    random = [np.load("./Random AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-100:] for i in range(7)]
+    baseline = [np.load("./Static Denoising AE - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]
+    latest_batch = [np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]
+    full_history = [np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]
+    random = [np.load("./Random AE - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]
 
-    # pca_buildings(full_history, range(7))
+    pca_buildings([baseline, latest_batch, random, [full_history[-1]]], range(7))
 
     # pop = np.load("Training_Set.npy", allow_pickle=True)
     # print(pop.shape)
@@ -166,7 +176,7 @@ if __name__ == '__main__':
     colors = ['red', 'yellow', 'blue', 'green']
     key = "Node Complexity"
 
-    plot_metric(metrics, labels, colors, key)
+    # plot_metric(metrics, labels, colors, key)
 
     """diversity = []
     for population in full_history:
