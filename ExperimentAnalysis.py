@@ -38,6 +38,7 @@ def pca_buildings(populations, phases):
     eucl_df = pd.DataFrame({'Phase': [], 'Average Euclidean Distance': [], 'Experiment': []})
 
     for population in range(len(converted_population)):
+        print("PCA on Population {:d}".format(population))
         plt.figure()
         plt.title("Novel Set PCA - {}".format(labels[population]))
         plt.xlabel("Component 1")
@@ -133,33 +134,37 @@ def lattice_dviersity(lattice, population):
     return np.average(diversities)
 
 
-def plot_metric(metric_list, labels, colors, key):
-    plt.figure()
-    plt.title("{} vs Generation over {:d} Runs.".format(key, 7))
-    plt.xlabel("Generation")
-    plt.ylabel(key)
+def plot_metric(metric_list, labels, colors, keys):
 
-    for counter in range(len(metric_list)):
-        metric = metric_list[counter].item().get(key)
-        generations = range(len(metric))
+    for key in keys:
 
-        # Plotting the mean of given metric over generations
-        plt.errorbar(x=generations,
-                     y=np.mean(metric[generations], axis=-1),
-                     fmt='-',
-                     label=labels[counter],
-                     alpha=1,
-                     color=colors[counter])
+        plt.figure()
+        plt.title("{} vs Generation over {:d} Runs.".format(key, 7))
+        plt.xlabel("Generation")
+        plt.ylabel(key)
 
-        # Filling the deviation from the mean in a translucent color.
-        plt.fill_between(x=generations,
-                         y1=np.mean(metric[generations], axis=-1) + np.std(metric, axis=-1)[generations],
-                         y2=np.mean(metric[generations], axis=-1) - np.std(metric, axis=1)[generations],
-                         color=colors[counter],
-                         alpha=0.25)
+        for counter in range(len(metric_list)):
 
-    plt.grid()
-    plt.legend(loc=2)
+            metric = metric_list[counter].item().get(key)
+            generations = range(len(metric))
+
+            # Plotting the mean of given metric over generations
+            plt.errorbar(x=generations,
+                         y=np.mean(metric[generations], axis=-1),
+                         fmt='-',
+                         label=labels[counter],
+                         alpha=1,
+                         color=colors[counter])
+
+            # Filling the deviation from the mean in a translucent color.
+            plt.fill_between(x=generations,
+                             y1=np.mean(metric[generations], axis=-1) + np.std(metric, axis=-1)[generations],
+                             y2=np.mean(metric[generations], axis=-1) - np.std(metric, axis=1)[generations],
+                             color=colors[counter],
+                             alpha=0.25)
+
+        plt.grid()
+        plt.legend()
     plt.show()
 
 
@@ -184,29 +189,25 @@ if __name__ == '__main__':
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
     labels = ["Static DAE", "Random AE", "Retrained DAE (Latest Set)", "Retrained DAE (Full History)", "Retrained AE (Full History)"]
-    subset_size = 1000
+    colors = ['black', 'red', 'blue', 'green', 'brown']
+    keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
 
+    subset_size = 1000
     static_dae = [np.load("./Static Denoising AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
     random_ae = [np.load("./Random AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
     latest_dae = [np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
     full_dae = [np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]
-    full_ae = [np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
-
     full_dae = fix_bugged_population(full_dae)
-    pca_buildings([static_dae, latest_dae, random_ae, full_dae, full_ae], range(7))
+    full_ae = [np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
+    # pca_buildings([static_dae, random_ae, latest_dae, full_dae, full_ae], range(7))
 
-    # pop = np.load("Training_Set.npy", allow_pickle=True)
-
-    """baseline_metrics = np.load("./Static Denoising AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-    latest_metrics = np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-    full_metrics = np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-    random_ae = np.load("./Random AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-
-    metrics = [latest_metrics, full_metrics, baseline_metrics, random_ae]
-    colors = ['red', 'yellow', 'blue', 'green']
-    key = "Node Complexity"""
-
-    # plot_metric(metrics, labels, colors, key)
+    static_dae_metrics = np.load("./Static Denoising AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
+    latest_dae_metrics = np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
+    full_dae_metrics = np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
+    full_ae_metrics = np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
+    random_ae_metrics = np.load("./Random AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
+    metrics = [static_dae_metrics, random_ae_metrics, latest_dae_metrics, full_dae_metrics, full_ae_metrics]
+    plot_metric(metrics, labels, colors, keys)
 
     """diversity = []
     for population in full_history:
