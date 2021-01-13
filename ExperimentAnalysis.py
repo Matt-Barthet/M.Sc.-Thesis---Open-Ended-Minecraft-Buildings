@@ -1,5 +1,4 @@
 import os
-from multiprocessing import Pool
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,64 +11,62 @@ from Delenox_Config import value_range
 
 
 def pca_buildings(populations, phases):
-    plt.figure()
-    plt.title("PCA of Novel Populations")
-    plt.xlabel("Component 1")
-    plt.ylabel("Component 2")
+
+    converted_population = []
+    for population in populations:
+        converted_phases = []
+        for phase in population:
+            converted_lattices = []
+            for lattice in phase:
+                converted_lattices.append(convert_to_integer(lattice).ravel())
+            converted_phases.append(converted_lattices)
+        converted_population.append(converted_phases)
 
     fit = []
-    for experiment in populations:
-        for population in experiment:
-            for lattice in population:
-                results.append(pool.apply_async(convert_to_integer, (np.asarray(lattice), )))
+    for population in converted_population:
+        for phase in population:
+            for lattice in phase:
+                fit.append(lattice)
 
-    for result in results:
-        fit.append(result.get().ravel())
-        print(len(fit))
+    pca = PCA(n_components=2)
+    pca.fit(fit)
+    fit.clear()
 
-    pca = PCA(n_components=2).fit(fit)
+    for population in range(len(converted_population)):
+        plt.figure()
+        plt.title("Novel Set PCA - {}".format(labels[population]))
+        plt.xlabel("Component 1")
+        plt.ylabel("Component 2")
 
-    eucl_averages = []
-    offsets = []
-    for model in range(7):
-        if model <= 1:
-            model = 1
-        offset = []
-        for i in range(1, 11):
-            offset += list(range(i * model * 100 - 100, i * model * 100))
-        offsets.append(offset)
+        eucl_averages = []
+        for phase in phases:
 
-    for model in phases:
+            principalComponents = pca.transform(converted_population[population][phase])
+            principalDf = pd.DataFrame(data=principalComponents, columns=['1', '2'])
 
-        lattices = []
+            averages = []
+            for vector in principalComponents:
+                average = 0
+                for other in principalComponents:
+                    dist = np.linalg.norm(vector - other)
+                    average = np.mean([average, dist])
+                averages.append(average)
+            eucl_averages.append(np.round(np.mean(averages), 2))
 
-        for lattice in populations[model][offsets[model]]:
-            lattices.append(convert_to_integer(lattice).ravel())
+            plt.scatter(principalDf['1'], principalDf['2'], cmap=[phase] * len(principalDf), s=5, alpha=0.5, label="Phase {:d}".format(phase + 1))
 
-        principalComponents = pca.transform(lattices)
-        principalDf = pd.DataFrame(data=principalComponents, columns=['1', '2'])
+        plt.xlim(-60, 105)
+        plt.ylim(-70, 70)
+        plt.legend()
+        plt.show()
 
-        averages = []
-        for vector in principalComponents:
-            average = 0
-            for other in principalComponents:
-                dist = np.linalg.norm(vector - other)
-                average = np.mean([average, dist])
-            averages.append(average)
-        eucl_averages.append(np.mean(averages))
-
-        plt.scatter(principalDf['1'], principalDf['2'], cmap=[model] * len(principalDf), s=10, alpha=0.5, label="Novel Set - Phase {:d}".format(model + 1))
-
-    plt.legend()
-    plt.show()
-
-    plt.figure()
-    plt.bar(x=range(1, len(eucl_averages) + 1), height=eucl_averages)
-    print(eucl_averages)
-    plt.xlabel("Exploration Phase")
-    plt.ylabel("Average Euclidean Distance (PCA Values)")
-    plt.title("Average Distance of PCA Values from each Exploration Phase")
-    plt.show()
+        print(labels[population], eucl_averages)
+        plt.figure()
+        plt.bar(x=range(1, len(eucl_averages) + 1), height=eucl_averages)
+        plt.xlabel("Exploration Phase")
+        plt.ylabel("Average Euclidean Distance (PCA Values)")
+        plt.title("Average Distance of PCA Values from each Exploration Phase")
+        plt.show()
 
 
 def accuracy_plot(populations):
@@ -146,35 +143,48 @@ def plot_metric(metric_list, labels, colors, key):
     plt.show()
 
 
+def fix_bugged_population(population):
+    fixed = [population[0][-subset_size:]]
+    for i in range(6):
+        offset = []
+        for j in range(10):
+            offset += (list(range(j * 600 + i * 100, j * 600 + i * 100 + 100)))
+        fixed.append(population[-1][offset][-subset_size:])
+    return fixed
+
 if __name__ == '__main__':
 
-    pool = Pool(14)
-    results = []
+    # pool = Pool(11)
+    # results = []
 
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-    baseline = [np.load("./Static Denoising AE - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]
-    latest_batch = [np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]
-    full_history = [np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]
-    random = [np.load("./Random AE - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]
+    labels = ["Static DAE", "Random AE", "Retrained DAE (Latest Set)", "Retrained DAE (Full History)", "Retrained AE (Full History)"]
+    subset_size = 1000
 
-    pca_buildings([baseline, latest_batch, random, [full_history[-1]]], range(7))
+    static_dae = [np.load("./Static Denoising AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
+    random_ae = [np.load("./Random AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
+    latest_dae = [np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
+    full_dae = [np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]
+    full_ae = [np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
+
+    full_dae = fix_bugged_population(full_dae)
+    pca_buildings([static_dae, latest_dae, random_ae, full_dae, full_ae], range(7))
 
     # pop = np.load("Training_Set.npy", allow_pickle=True)
     # print(pop.shape)
 
-    baseline_metrics = np.load("./Static Denoising AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
+    """baseline_metrics = np.load("./Static Denoising AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
     latest_metrics = np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
     full_metrics = np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
     random_ae = np.load("./Random AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
 
     metrics = [latest_metrics, full_metrics, baseline_metrics, random_ae]
-    labels = ["Retrained DAE (Latest Set)", "Retrained DAE (Full History)", "Static DAE", "Random AE"]
     colors = ['red', 'yellow', 'blue', 'green']
-    key = "Node Complexity"
+    key = "Node Complexity"""
 
     # plot_metric(metrics, labels, colors, key)
 
