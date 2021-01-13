@@ -4,10 +4,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import seaborn as sns
 from sklearn.decomposition import PCA
 
 from Autoencoder import load_model, convert_to_integer, test_accuracy
 from Delenox_Config import value_range
+
+plt.style.use('seaborn')
 
 
 def pca_buildings(populations, phases):
@@ -32,6 +35,8 @@ def pca_buildings(populations, phases):
     pca.fit(fit)
     fit.clear()
 
+    eucl_df = pd.DataFrame({'Phase': [], 'Average Euclidean Distance': [], 'Experiment': []})
+
     for population in range(len(converted_population)):
         plt.figure()
         plt.title("Novel Set PCA - {}".format(labels[population]))
@@ -39,34 +44,49 @@ def pca_buildings(populations, phases):
         plt.ylabel("Component 2")
 
         eucl_averages = []
+
+        pca_df = pd.DataFrame({'x': [], 'y': [], 'Phase': []})
+
         for phase in phases:
 
-            principalComponents = pca.transform(converted_population[population][phase])
-            principalDf = pd.DataFrame(data=principalComponents, columns=['1', '2'])
+            principal_components = pca.transform(converted_population[population][phase])
+            principal_df = pd.DataFrame({'x': [item[0] for item in principal_components], 'y': [item[1] for item in principal_components], 'Phase': np.repeat("{:d}".format(phase + 1), len(principal_components))})
+            pca_df = pd.concat([pca_df, principal_df], axis=0)
 
             averages = []
-            for vector in principalComponents:
+            for vector in principal_components:
                 average = 0
-                for other in principalComponents:
+                for other in principal_components:
                     dist = np.linalg.norm(vector - other)
                     average = np.mean([average, dist])
                 averages.append(average)
             eucl_averages.append(np.round(np.mean(averages), 2))
 
-            plt.scatter(principalDf['1'], principalDf['2'], cmap=[phase] * len(principalDf), s=5, alpha=0.5, label="Phase {:d}".format(phase + 1))
+            tmp = pd.DataFrame({'Phase': [phase + 1],
+                                'Average Euclidean Distance': [np.round(np.mean(averages), 2)],
+                                'Experiment': [labels[population]]})
+
+            eucl_df = pd.concat([eucl_df, tmp], axis=0)
+
+            plt.scatter(principal_df['x'],
+                        principal_df['y'],
+                        cmap=[phase] * len(principal_df),
+                        s=10,
+                        alpha=0.5,
+                        label="Phase {:d}".format(phase + 1))
 
         plt.xlim(-60, 105)
-        plt.ylim(-70, 70)
+        plt.ylim(-70, 80)
         plt.legend()
-        plt.show()
 
-        print(labels[population], eucl_averages)
-        plt.figure()
-        plt.bar(x=range(1, len(eucl_averages) + 1), height=eucl_averages)
-        plt.xlabel("Exploration Phase")
-        plt.ylabel("Average Euclidean Distance (PCA Values)")
-        plt.title("Average Distance of PCA Values from each Exploration Phase")
-        plt.show()
+        # Use seaborn for easy faceting
+        g = sns.FacetGrid(pca_df, col="Phase", hue="Phase")
+        g.fig.suptitle("Novel Training Set PCA - {}".format(labels[population]))
+        g = (g.map(plt.scatter, "x", "y", edgecolor="w", s=10, alpha=0.5))
+
+    ax = sns.catplot(x='Phase', y='Average Euclidean Distance', hue='Experiment', data=eucl_df, kind='bar')
+    ax.fig.suptitle('Average PW Euclidean Distance using PCA')
+    plt.show()
 
 
 def accuracy_plot(populations):
@@ -152,6 +172,7 @@ def fix_bugged_population(population):
         fixed.append(population[-1][offset][-subset_size:])
     return fixed
 
+
 if __name__ == '__main__':
 
     # pool = Pool(11)
@@ -175,7 +196,6 @@ if __name__ == '__main__':
     pca_buildings([static_dae, latest_dae, random_ae, full_dae, full_ae], range(7))
 
     # pop = np.load("Training_Set.npy", allow_pickle=True)
-    # print(pop.shape)
 
     """baseline_metrics = np.load("./Static Denoising AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
     latest_metrics = np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
