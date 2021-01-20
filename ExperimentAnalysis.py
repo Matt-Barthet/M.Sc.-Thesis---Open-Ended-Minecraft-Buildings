@@ -6,7 +6,8 @@ import pandas as pd
 import tensorflow as tf
 import seaborn as sns
 from sklearn.decomposition import PCA
-
+from sklearn.metrics import mutual_info_score
+from scipy.stats import entropy
 from Autoencoder import load_model, convert_to_integer, test_accuracy
 from Delenox_Config import value_range
 
@@ -90,48 +91,61 @@ def pca_buildings(populations, phases):
     plt.show()
 
 
-def accuracy_plot(populations):
+def accuracy_plot(populations, phases, models):
     errors = []
-    errors0 = []
-    # encoder0 = load_model("./Retrain AE (Full History) - Clearing Archive/Phase{}/encoder".format(0))
-    # decoder0 = load_model("./Retrain AE (Full History) - Clearing Archive/Phase{}/decoder".format(0))
+    df = pd.DataFrame({'Phase': [], 'Reconstruction Error': [], 'Experiment': []})
 
-    offsets = []
+    for population in range(len(models)):
 
-    for model in range(8):
-        if model <= 1:
-            model = 1
-        offset = []
-        for i in range(1, 11):
-            offset += list(range(i * model * 100 - 100, i * model * 100))
-        offsets.append(offset)
+        for phase in phases:
+            print("Starting new phase")
 
-    for model in [1, 6]:
-        print("Starting")
-        encoder = load_model("./Retrain AE (Latest Batch) - Clearing Archive/Phase{}/encoder".format(model))
-        decoder = load_model("./Retrain AE (Latest Batch) - Clearing Archive/Phase{}/decoder".format(model))
-        error = test_accuracy(encoder, decoder, list(populations[model + 1]))
-        # error0 = test_accuracy(encoder0, decoder0, list(populations[model + 1][offsets[model + 1]]))
-        errors.append(error)
-        #errors0.append(error0)
+            if population != 0:
+                encoder = load_model("{}Phase{}/encoder".format(models[population], 6))
+                decoder = load_model("{}Phase{}/decoder".format(models[population], 6))
+            else:
+                encoder = load_model("{}Phase{}/encoder".format(models[population], 0))
+                decoder = load_model("{}Phase{}/decoder".format(models[population], 0))
 
-    print("Errors Initial: ", errors0)
-    print("Errors Final: ", errors)
+            error = test_accuracy(encoder, decoder, populations[population][phase])
+            errors.append(error)
 
-    df = pd.DataFrame({"Evolved AE": errors, "Static AE": errors0}, index=range(1, 9))
-    df.plot.bar(rot=0)
+            tmp = pd.DataFrame({'Phase': [phase + 1],
+                                'Reconstruction Error': [np.round(np.mean(error), 2)],
+                                'Experiment': [labels[population]]})
+            df = pd.concat([df, tmp], axis=0)
+
+    ax = sns.catplot(x='Phase', y='Reconstruction Error', hue='Experiment', data=df, kind='bar')
+    ax.fig.suptitle('Average Reconstruction Error using Final Autoencoder')
     plt.show()
 
 
-def lattice_dviersity(lattice, population):
+def lattice_dviersity(populations):
     diversities = []
-    for other in population:
-        diversity = 0
-        for (x, y, z) in value_range:
-            if list(lattice[x][y][z]) != list(other[x][y][z]):
-                diversity += 1
-        diversities.append(diversity / 8000)
-    return np.average(diversities)
+    df = pd.DataFrame({'Phase': [], 'Entropy': [], 'Experiment': []})
+
+    for population in range(len(populations)):
+        for phase in populations[population]:
+            print("Starting Phase")
+
+            for lattice in phase:
+                diversity = 0
+
+                for other in phase:
+                    for (x, y, z) in value_range:
+                        diversity += entropy(lattice[x][y][z], other[x][y][z])
+
+                diversities.append(diversity / 8000)
+
+            tmp = pd.DataFrame({'Phase': [phase + 1],
+                                'Entropy': [np.round(np.mean(diversities), 2)],
+                                'Experiment': [labels[population]]})
+
+            df = pd.concat([df, tmp], axis=0)
+
+    ax = sns.catplot(x='Phase', y='Entropy', hue='Experiment', data=df, kind='bar')
+    ax.fig.suptitle('Mutual Info (Diversity) of Training Sets')
+    plt.show()
 
 
 def plot_metric(metric_list, labels, colors, keys):
@@ -180,25 +194,44 @@ def fix_bugged_population(population):
 
 if __name__ == '__main__':
 
-    # pool = Pool(11)
-    # results = []
-
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-    labels = ["Static DAE", "Random AE", "Retrained DAE (Latest Set)", "Retrained DAE (Full History)", "Retrained AE (Full History)"]
+    labels = ["Static DAE",
+              "Random AE",
+              "Retrained DAE (Latest Set)",
+              "Retrained DAE (Full History)",
+              "Retrained AE (Full History)"]
+
     colors = ['black', 'red', 'blue', 'green', 'brown']
     keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
 
-    subset_size = 1000
+    directories = ['./Static Denoising AE - Clearing Archive/',
+                   './Random AE - Clearing Archive/',
+                   './Retrain Denoising AE (Latest Batch) - Clearing Archive/',
+                   './Retrain Denoising AE (Full History) - Clearing Archive/',
+                   './Retrain Vanilla AE (Full History) - Clearing Archive/'
+                   ]
+
+    subset_size = 5
     static_dae = [np.load("./Static Denoising AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
     random_ae = [np.load("./Random AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
     latest_dae = [np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
     full_dae = [np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]
     full_dae = fix_bugged_population(full_dae)
     full_ae = [np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
+
+    training_sets = [
+        static_dae,
+        random_ae,
+        latest_dae,
+        full_dae,
+        full_ae
+    ]
+
+    lattice_dviersity(training_sets)
     # pca_buildings([static_dae, random_ae, latest_dae, full_dae, full_ae], range(7))
 
     static_dae_metrics = np.load("./Static Denoising AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
@@ -207,8 +240,9 @@ if __name__ == '__main__':
     full_ae_metrics = np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
     random_ae_metrics = np.load("./Random AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
     metrics = [static_dae_metrics, random_ae_metrics, latest_dae_metrics, full_dae_metrics, full_ae_metrics]
-    plot_metric(metrics, labels, colors, keys)
+    # plot_metric(metrics, labels, colors, keys)
 
+    #accuracy_plot(training_sets, range(7), directories)
     """diversity = []
     for population in full_history:
         pool = Pool(10)
