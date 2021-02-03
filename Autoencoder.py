@@ -20,7 +20,7 @@ def update_auto_encoder(ae, population):
     return ae
 
 
-def create_auto_encoder(model_type, phase, population, noisy=None):
+def create_auto_encoder(model_type, phase, population=None, noisy=None, save=True):
     """
     Function to create and train a de-noising auto-encoder to compress 3D lattices
     into a 1D latent vector representation.
@@ -39,18 +39,21 @@ def create_auto_encoder(model_type, phase, population, noisy=None):
     # Compiling the AE and fitting it using the noisy population as input and the original population as the target
     ae.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['categorical_accuracy', 'binary_accuracy'])
 
-    if noisy is None:
-        noisy = add_noise_parallel(population)
+    """if noisy is None:
+        noisy = add_noise_parallel(population)"""
 
-    # If the function is given a population of lattices, create a set of noisy variants and partition into train-test.
-    training_noisy, test_noisy, training, test = train_test_split(noisy, population, test_size=0.2, random_state=29)
+    if population is not None:
+        # If the function is given a population of lattices, create a set of noisy variants and partition into train-test.
+        # training_noisy, test_noisy, training, test = train_test_split(population, population, test_size=0.2, random_state=29)
+        training, test = train_test_split(population, test_size=0.2, random_state=29)
 
-    history = ae.fit(x=training_noisy, y=training, epochs=no_epochs,
-                     batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True)
-    visualize_training(history, phase)
+        history = ae.fit(x=training, y=training, epochs=no_epochs,
+                         batch_size=batch_size, validation_data=(test, test), shuffle=True)
+        visualize_training(history, phase)
 
-    save_model(encoder_model, "./Delenox_Experiment_Data/Phase{:d}/encoder".format(phase))
-    save_model(decoder_model, "./Delenox_Experiment_Data/Phase{:d}/decoder".format(phase))
+    if save:
+        save_model(encoder_model, "./Delenox_Experiment_Data/Phase{:d}/encoder".format(phase))
+        save_model(decoder_model, "./Delenox_Experiment_Data/Phase{:d}/decoder".format(phase))
 
     return ae, encoder_model, decoder_model
 
@@ -276,7 +279,7 @@ def test_accuracy(encoder, decoder, test):
         integer_reconstruct = convert_to_integer(reconstructed)
         error.append(calculate_error(lattice, integer_reconstruct))
         # auto_encoder_plot(lattice, compressed, integer_reconstruct, error[-1])
-    return np.mean(error)
+    return np.round(np.mean(error), 2)
 
 
 def calculate_error(original, reconstruction):
@@ -308,3 +311,11 @@ def convert_to_integer(lattice):
         for row in range(20):
             integer_reconstruct[channel][row] = np.argmax(lattice[channel][row], axis=1)
     return integer_reconstruct
+
+
+def convert_to_ones(lattice):
+    new_lattice = np.zeros(lattice.shape)
+    for (x, y, z) in value_range:
+        if lattice[x][y][z] > 0:
+            new_lattice[x][y][z] = 1
+    return new_lattice

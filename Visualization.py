@@ -18,14 +18,17 @@ def plot_statistics(values, confidence, key, phase):
     plt.savefig("./Delenox_Experiment_Data/Phase{}/{}_Stats.png".format(phase, key))
 
 
-def voxel_plot(lattice, title, filename=None):
+def voxel_plot(lattice, title, filename=None, color_one='blue'):
     fig = plt.figure()
     ax = fig.gca(projection='3d')
-    ax.voxels(lattice, edgecolor="k", facecolors=get_color_map(lattice))
+    ax.voxels(lattice, edgecolor="k", facecolors=get_color_map(lattice, color_one))
     ax.set_title(title)
+    plt.tight_layout()
     if filename is not None:
-        plt.savefig(
-            "./Delenox_Experiment_Data/Run" + str(current_run) + "/Lattice_" + str(time.time()) + ".png")
+
+        """plt.savefig(
+            "./Delenox_Experiment_Data/Run" + str(current_run) + "/Lattice_" + str(time.time()) + ".png")"""
+        plt.savefig(filename)
         plt.cla()
         plt.clf()
     else:
@@ -96,13 +99,13 @@ def plot_fitness(averages, stdev, generation_count, title, label=None):
     plt.show()
 
 
-def get_color_map(lattice):
+def get_color_map(lattice, color_one='blue'):
     color = np.empty(lattice.shape, dtype=object)
     for i in range(0, lattice.shape[0]):
         for j in range(0, lattice.shape[1]):
             for k in range(0, lattice.shape[2]):
                 if lattice[i][j][k] == 1:
-                    color[i][j][k] = 'blue'
+                    color[i][j][k] = color_one
                 elif lattice[i][j][k] == 2:
                     color[i][j][k] = 'red'
                 elif lattice[i][j][k] == 3:

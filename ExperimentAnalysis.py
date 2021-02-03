@@ -6,13 +6,14 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import seaborn as sns
+from scipy.special import softmax
 from sklearn.decomposition import PCA
 from sklearn.metrics import mutual_info_score
 from scipy.stats import entropy
-from Autoencoder import load_model, convert_to_integer, test_accuracy, create_auto_encoder, auto_encoder_3d
+from Autoencoder import load_model, convert_to_integer, test_accuracy, create_auto_encoder, auto_encoder_3d, \
+    convert_to_ones
 from Delenox_Config import value_range
-
-plt.style.use('seaborn')
+from Visualization import voxel_plot
 
 
 def pca_buildings(populations, phases):
@@ -151,14 +152,15 @@ def lattice_dviersity(populations):
 
 def novel_diversity(populations):
 
-    df = pd.DataFrame({'Phase': [], 'Eucl. Distance': [], 'Experiment': []})
+    eucl_df = pd.DataFrame({'Phase': [], 'Eucl. Distance': [], 'Experiment': []})
+    entropy_df = pd.DataFrame({'Phase': [], 'Entropy': [], 'Experiment': []})
 
     _, encoder, decoder = create_auto_encoder(auto_encoder_3d,
                                               noisy=None,
                                               phase=0,
                                               save=False)
 
-    pool = Pool(12)
+    pool = Pool(16)
 
     for population in range(len(populations)):
         for phase in range(len(populations[population])):
@@ -167,33 +169,62 @@ def novel_diversity(populations):
             results = []
             phase_vectors = []
             phase_diversity = []
+            phase_entropy = []
+
             for lattice in populations[population][phase]:
-                phase_vectors.append(encoder.predict(lattice[None])[0])
+                compressed = encoder.predict(lattice[None])[0]
+                compressed = softmax(compressed)
+                phase_vectors.append(compressed)
 
             for vectors in phase_vectors:
-                results.append(pool.apply_async(vector_entropy, (vectors, phase_vectors)))
+                results.append(pool.apply_async(vector_novelty, (vectors, phase_vectors)))
 
             for result in results:
                 phase_diversity.append(result.get())
 
-            tmp = pd.DataFrame({'Phase': [phase + 1],
-                                'Eucl. Distance': [np.round(np.mean(phase_diversity), 2)],
-                                'Experiment': [labels[population]]})
-            df = pd.concat([df, tmp], axis=0)
+            results.clear()
+            for vectors in phase_vectors:
+                results.append(pool.apply_async(vector_entropy, (vectors, phase_vectors)))
 
-    ax = sns.catplot(x='Phase', y='Eucl. Distance', hue='Experiment', data=df, kind='bar')
-    ax.fig.suptitle('Average Pairwise Eucl. Distance of Training Sets')
+            for result in results:
+                phase_entropy.append(result.get())
+
+            tmp = pd.DataFrame({'Phase': [phase + 1],
+                                'Eucl. Distance': [np.mean(phase_diversity)],
+                                'Experiment': [labels[population]]})
+            eucl_df = pd.concat([eucl_df, tmp], axis=0)
+
+            tmp = pd.DataFrame({'Phase': [phase + 1],
+                                'Entropy': [np.mean(phase_entropy)],
+                                'Experiment': [labels[population]]})
+            entropy_df = pd.concat([entropy_df, tmp], axis=0)
+
+    ax = sns.catplot(x='Phase', y='Eucl. Distance', hue='Experiment', data=eucl_df, kind='bar')
+    ax.fig.suptitle('Average Pairwise Eucl. Distance of Latent Vectors Training Sets')
     plt.show()
+
+    ax = sns.catplot(x='Phase', y='Entropy', hue='Experiment', data=entropy_df, kind='bar')
+    ax.fig.suptitle('Average Entropy of Latent Vectors in Training Sets')
+    plt.show()
+
+
+def vector_novelty(vector1, population):
+    diversities = []
+    for neighbour in population:
+        if not np.array_equal(vector1, neighbour):
+            diversity = 0
+            for element in range(len(neighbour)):
+                diversity += np.square(vector1[element] - neighbour[element])
+            diversities.append(np.sqrt(diversity))
+    return np.mean(diversities)
 
 
 def vector_entropy(vector1, population):
     diversities = []
     for neighbour in population:
-        diversity = 0
-        for element in range(len(neighbour)):
-            diversity += np.square(vector1[element] - neighbour[element])
-        diversities.append(np.sqrt(diversity))
-    return np.round(np.mean(diversities), 2)
+        if not np.array_equal(vector1, neighbour):
+            diversities.append(entropy(vector1, neighbour))
+    return np.mean(diversities)
 
 
 def plot_metric(metric_list, labels, colors, keys):
@@ -280,6 +311,18 @@ if __name__ == '__main__':
     ]
 
     novel_diversity(training_sets)
+
+    """full_dae = np.load("./Retrain Vanilla AE (Full History) - Persistent Archive/Phase4/Population_5.npy", allow_pickle=True)
+    full_dae = list(full_dae.item().values())
+
+    counter = 1
+    for i in [1, 2, 3, 5, 11]:
+        building = np.load("./Building_{:d}.npy".format(i))
+        voxel_plot(building, "", "./Buildings/Materials#{:d}".format(counter))
+        voxel_plot(convert_to_ones(building), "", "./Buildings/White#{:d}".format(counter), color_one='white')
+        voxel_plot(convert_to_ones(building), "", "./Buildings/Blue#{:d}".format(counter), color_one='blue')
+        counter+=1"""
+
     # pca_buildings([static_dae, random_ae, latest_dae, full_dae, full_ae], range(7))
 
     static_dae_metrics = np.load("./Static Denoising AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)

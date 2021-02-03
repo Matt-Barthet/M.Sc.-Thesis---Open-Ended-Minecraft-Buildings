@@ -43,7 +43,7 @@ class NeatGenerator:
                              'Archive Size': [],
                              'Species Count': [],
                              }
-
+        self.archive_lattices = []
         self.pool = None
 
     def run_neat(self, phase_number, queue=None):
@@ -57,6 +57,10 @@ class NeatGenerator:
         :param queue:
         :return: the generated population of lattices and statistics variables from the runs of the phase.
         """
+        # self.archive.clear()
+        self.phase_best_fit.clear()
+        # self.archive_lattices.clear()
+
         self.current_gen = 0
         self.current_phase = phase_number
         self.encoder = load_model("./Delenox_Experiment_Data/Phase{:d}/encoder".format(phase_number))
@@ -124,6 +128,7 @@ class NeatGenerator:
 
         for individual in range(np.min([add_to_archive, len(lattices)])):
             lattice = lattices[sorted_keys[-individual]]
+            self.archive_lattices.append(lattice)
             vector = self.encoder.predict(lattice[None])[0]
             if len(self.archive) == 0 or not (vector == list(self.archive.values())).all(1).any():
                 self.archive.update({sorted_keys[-individual]: vector})
@@ -137,8 +142,7 @@ class NeatGenerator:
         if self.current_gen + 1 == generations_per_run:
             np.save("./Delenox_Experiment_Data/Phase{:d}/Population_{:d}.npy".format(self.current_phase, self.population_id), lattices)
             for individual in range(np.min([best_fit_count, len(lattices)])):
-                lattice = lattices[sorted_keys[-individual]]
-                self.phase_best_fit.append(lattice)
+                self.phase_best_fit.append(lattices[sorted_keys[-individual]])
 
         node_complexity = 0
         connection_complexity = 0
