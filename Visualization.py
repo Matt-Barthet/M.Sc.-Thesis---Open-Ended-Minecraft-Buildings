@@ -23,11 +23,9 @@ def voxel_plot(lattice, title, filename=None, color_one='blue'):
     ax = fig.gca(projection='3d')
     ax.voxels(lattice, edgecolor="k", facecolors=get_color_map(lattice, color_one))
     ax.set_title(title)
-    plt.tight_layout()
+    ax.set_axis_off()
+    fig.add_axes(ax)
     if filename is not None:
-
-        """plt.savefig(
-            "./Delenox_Experiment_Data/Run" + str(current_run) + "/Lattice_" + str(time.time()) + ".png")"""
         plt.savefig(filename)
         plt.cla()
         plt.clf()

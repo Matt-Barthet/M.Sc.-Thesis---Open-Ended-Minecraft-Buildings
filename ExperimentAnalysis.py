@@ -1,19 +1,17 @@
 import os
 from multiprocessing import Pool
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 import seaborn as sns
+import tensorflow as tf
 from scipy.special import softmax
-from sklearn.decomposition import PCA
-from sklearn.metrics import mutual_info_score
 from scipy.stats import entropy
-from Autoencoder import load_model, convert_to_integer, test_accuracy, create_auto_encoder, auto_encoder_3d, \
-    convert_to_ones
+from sklearn.decomposition import PCA
+from Autoencoder import load_model, convert_to_integer, test_accuracy, create_auto_encoder, auto_encoder_3d
 from Delenox_Config import value_range
-from Visualization import voxel_plot
+
+plt.style.use('seaborn')
 
 
 def pca_buildings(populations, phases):
@@ -48,6 +46,7 @@ def pca_buildings(populations, phases):
         plt.ylabel("Component 2")
 
         eucl_averages = []
+        eucl_std = []
 
         pca_df = pd.DataFrame({'x': [], 'y': [], 'Phase': []})
 
@@ -65,12 +64,13 @@ def pca_buildings(populations, phases):
                     average = np.mean([average, dist])
                 averages.append(average)
             eucl_averages.append(np.round(np.mean(averages), 2))
+            eucl_std.append(np.std(averages))
 
-            tmp = pd.DataFrame({'Phase': [phase + 1],
-                                'Average Euclidean Distance': [np.round(np.mean(averages), 2)],
-                                'Experiment': [labels[population]]})
-
-            eucl_df = pd.concat([eucl_df, tmp], axis=0)
+            for average in averages:
+                tmp = pd.DataFrame({'Phase': [phase + 1],
+                                    'Average Euclidean Distance': [average],
+                                    'Experiment': [labels[population]]})
+                eucl_df = pd.concat([eucl_df, tmp], axis=0)
 
             plt.scatter(principal_df['x'],
                         principal_df['y'],
@@ -87,14 +87,21 @@ def pca_buildings(populations, phases):
         g = sns.FacetGrid(pca_df, col="Phase", hue="Phase")
         g.fig.suptitle("Novel Training Set PCA - {}".format(labels[population]))
         g = (g.map(plt.scatter, "x", "y", edgecolor="w", s=10, alpha=0.5))
+        plt.subplots_adjust(left=0.032, right=0.992, top=0.836, bottom=0.143)
 
-    ax = sns.catplot(x='Phase', y='Average Euclidean Distance', hue='Experiment', data=eucl_df, kind='bar')
-    ax.fig.suptitle('Average PW Euclidean Distance using PCA')
+    plt.figure()
+    plt.subplots_adjust(left=0.080, right=0.790, top=0.915, bottom=0.090)
+    ax = sns.lineplot(x='Phase', y='Average Euclidean Distance', hue='Experiment', data=eucl_df, ci='sd')
+    ax.set_title('Average PW Euclidean Distance using PCA')
+    ax.legend(frameon=True, bbox_to_anchor=(1.005, 0.65), loc="upper left")
+    legend = ax.get_legend()
+    frame = legend.get_frame()
+    frame.set_facecolor('white')
+    frame.set_edgecolor('black')
     plt.show()
 
 
 def accuracy_plot(populations, phases, models):
-    errors = []
     df = pd.DataFrame({'Phase': [], 'Reconstruction Error': [], 'Experiment': []})
 
     for population in range(len(models)):
@@ -109,20 +116,27 @@ def accuracy_plot(populations, phases, models):
                 encoder = load_model("{}Phase{}/encoder".format(models[population], 0))
                 decoder = load_model("{}Phase{}/decoder".format(models[population], 0))
 
-            error = test_accuracy(encoder, decoder, populations[population][phase])
-            errors.append(error)
+            errors = test_accuracy(encoder, decoder, populations[population][phase], mean=False)
 
-            tmp = pd.DataFrame({'Phase': [phase + 1],
-                                'Reconstruction Error': [np.round(np.mean(error), 2)],
-                                'Experiment': [labels[population]]})
-            df = pd.concat([df, tmp], axis=0)
+            for error in errors:
+                tmp = pd.DataFrame({'Phase': [phase + 1],
+                                    'Reconstruction Error': [error],
+                                    'Experiment': [labels[population]]})
+                df = pd.concat([df, tmp], axis=0)
 
-    ax = sns.catplot(x='Phase', y='Reconstruction Error', hue='Experiment', data=df, kind='bar')
-    ax.fig.suptitle('Average Reconstruction Error using Final Autoencoder')
+    plt.figure()
+    plt.subplots_adjust(left=0.080, right=0.790, top=0.915, bottom=0.090)
+    ax = sns.lineplot(x='Phase', y='Reconstruction Error', hue='Experiment', data=df, ci='sd')
+    ax.set_title('Average Reconstruction Error using Final AE')
+    ax.legend(frameon=True, bbox_to_anchor=(1.005, 0.65), loc="upper left")
+    legend = ax.get_legend()
+    frame = legend.get_frame()
+    frame.set_facecolor('white')
+    frame.set_edgecolor('black')
     plt.show()
 
 
-def lattice_dviersity(populations):
+def lattice_diversity(populations):
     diversities = []
     df = pd.DataFrame({'Phase': [], 'Entropy': [], 'Experiment': []})
 
@@ -159,17 +173,15 @@ def novel_diversity(populations):
                                               noisy=None,
                                               phase=0,
                                               save=False)
-
-    pool = Pool(16)
+    pool = Pool(11)
 
     for population in range(len(populations)):
+        print("Starting Population {:d}".format(population))
         for phase in range(len(populations[population])):
-            print("Starting Phase")
+            print("Starting Phase {:d}".format(phase))
 
             results = []
             phase_vectors = []
-            phase_diversity = []
-            phase_entropy = []
 
             for lattice in populations[population][phase]:
                 compressed = encoder.predict(lattice[None])[0]
@@ -180,31 +192,42 @@ def novel_diversity(populations):
                 results.append(pool.apply_async(vector_novelty, (vectors, phase_vectors)))
 
             for result in results:
-                phase_diversity.append(result.get())
+                tmp = pd.DataFrame({'Phase': [phase + 1],
+                                    'Eucl. Distance': [result.get()],
+                                    'Experiment': [labels[population]]})
+                eucl_df = pd.concat([eucl_df, tmp], axis=0)
 
             results.clear()
+
             for vectors in phase_vectors:
                 results.append(pool.apply_async(vector_entropy, (vectors, phase_vectors)))
 
             for result in results:
-                phase_entropy.append(result.get())
+                tmp = pd.DataFrame({'Phase': [phase + 1],
+                                    'Entropy': [result.get()],
+                                    'Experiment': [labels[population]]})
+                entropy_df = pd.concat([entropy_df, tmp], axis=0)
 
-            tmp = pd.DataFrame({'Phase': [phase + 1],
-                                'Eucl. Distance': [np.mean(phase_diversity)],
-                                'Experiment': [labels[population]]})
-            eucl_df = pd.concat([eucl_df, tmp], axis=0)
-
-            tmp = pd.DataFrame({'Phase': [phase + 1],
-                                'Entropy': [np.mean(phase_entropy)],
-                                'Experiment': [labels[population]]})
-            entropy_df = pd.concat([entropy_df, tmp], axis=0)
-
-    ax = sns.catplot(x='Phase', y='Eucl. Distance', hue='Experiment', data=eucl_df, kind='bar')
-    ax.fig.suptitle('Average Pairwise Eucl. Distance of Latent Vectors Training Sets')
+    plt.figure()
+    plt.subplots_adjust(left=0.080, right=0.790, top=0.915, bottom=0.090)
+    ax = sns.lineplot(x='Phase', y='Eucl. Distance', hue='Experiment', data=eucl_df, ci='sd')
+    ax.set_title('Average Pairwise Eucl. Distance of Latent Vectors Training Sets')
+    ax.legend(frameon=True, bbox_to_anchor=(1.005, 0.65), loc="upper left")
+    legend = ax.get_legend()
+    frame = legend.get_frame()
+    frame.set_facecolor('white')
+    frame.set_edgecolor('black')
     plt.show()
 
-    ax = sns.catplot(x='Phase', y='Entropy', hue='Experiment', data=entropy_df, kind='bar')
-    ax.fig.suptitle('Average Entropy of Latent Vectors in Training Sets')
+    plt.figure()
+    plt.subplots_adjust(left=0.080, right=0.790, top=0.915, bottom=0.090)
+    ax = sns.lineplot(x='Phase', y='Entropy', hue='Experiment', data=entropy_df, ci='sd')
+    ax.set_title('Average Entropy of Latent Vectors in Training Sets')
+    ax.legend(frameon=True, bbox_to_anchor=(1.005, 0.65), loc="upper left")
+    legend = ax.get_legend()
+    frame = legend.get_frame()
+    frame.set_facecolor('white')
+    frame.set_edgecolor('black')
     plt.show()
 
 
@@ -257,7 +280,10 @@ def plot_metric(metric_list, labels, colors, keys):
                              alpha=0.25)
 
         plt.grid()
-        plt.legend()
+        legend = plt.legend(frameon=True)
+        frame = legend.get_frame()
+        frame.set_facecolor('white')
+        frame.set_edgecolor('black')
     plt.show()
 
 
@@ -278,72 +304,65 @@ if __name__ == '__main__':
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-    labels = ["Static DAE",
-              "Random AE",
-              "Retrained DAE (Latest Set)",
-              "Retrained DAE (Full History)",
-              "Retrained AE (Full History)"]
-
-    colors = ['black', 'red', 'blue', 'green', 'brown']
-    keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
-
-    directories = ['./Static Denoising AE - Clearing Archive/',
-                   './Random AE - Clearing Archive/',
-                   './Retrain Denoising AE (Latest Batch) - Clearing Archive/',
-                   './Retrain Denoising AE (Full History) - Clearing Archive/',
-                   './Retrain Vanilla AE (Full History) - Clearing Archive/'
-                   ]
-
     subset_size = 1000
-    static_dae = [np.load("./Static Denoising AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
-    random_ae = [np.load("./Random AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
-    latest_dae = [np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
-    full_dae = [np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]
-    full_dae = fix_bugged_population(full_dae)
-    full_ae = [np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
+
+    labels = [
+        "Static DAE",
+        "Random AE",
+        "Latest Set DAE",
+        "Full History DAE",
+        "Full History AE",
+        "Novelty Archive AE"
+    ]
+
+    colors = [
+        'black',
+        'red',
+        'blue',
+        'green',
+        'brown',
+        'yellow'
+    ]
+
+    keys = [
+        "Node Complexity",
+        "Connection Complexity",
+        "Archive Size",
+        "Best Novelty",
+        "Mean Novelty"
+    ]
+
+    directories = [
+        './Static Denoising AE - Clearing Archive/',
+        './Random AE - Clearing Archive/',
+        './Retrain Denoising AE (Latest Batch) - Clearing Archive/',
+        './Retrain Denoising AE (Full History) - Clearing Archive/',
+        './Retrain Vanilla AE (Full History) - Clearing Archive/',
+        './Retrain AE (Full Archive History) - Clearing Archive/'
+    ]
 
     training_sets = [
-        static_dae,
-        random_ae,
-        latest_dae,
-        full_dae,
-        full_ae
+        [np.load("./Static Denoising AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)],
+        [np.load("./Random AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)],
+        [np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)],
+        fix_bugged_population([np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]),
+        [np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)],
+        [np.load("./Retrain AE (Full Archive History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
+    ]
+
+    metrics = [
+        np.load("./Static Denoising AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True),
+        np.load("./Random AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True),
+        np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True),
+        np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True),
+        np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True),
+        np.load("./Retrain AE (Full Archive History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
     ]
 
     novel_diversity(training_sets)
-
-    """full_dae = np.load("./Retrain Vanilla AE (Full History) - Persistent Archive/Phase4/Population_5.npy", allow_pickle=True)
-    full_dae = list(full_dae.item().values())
-
-    counter = 1
-    for i in [1, 2, 3, 5, 11]:
-        building = np.load("./Building_{:d}.npy".format(i))
-        voxel_plot(building, "", "./Buildings/Materials#{:d}".format(counter))
-        voxel_plot(convert_to_ones(building), "", "./Buildings/White#{:d}".format(counter), color_one='white')
-        voxel_plot(convert_to_ones(building), "", "./Buildings/Blue#{:d}".format(counter), color_one='blue')
-        counter+=1"""
-
-    # pca_buildings([static_dae, random_ae, latest_dae, full_dae, full_ae], range(7))
-
-    static_dae_metrics = np.load("./Static Denoising AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-    latest_dae_metrics = np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-    full_dae_metrics = np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-    full_ae_metrics = np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-    random_ae_metrics = np.load("./Random AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-    metrics = [static_dae_metrics, random_ae_metrics, latest_dae_metrics, full_dae_metrics, full_ae_metrics]
+    # pca_buildings(training_sets, range(7))
+    # accuracy_plot(training_sets, range(7), directories)
     # plot_metric(metrics, labels, colors, keys)
 
-    #accuracy_plot(training_sets, range(7), directories)
-    """diversity = []
-    for population in full_history:
-        pool = Pool(10)
-        jobs = []
-        pop_diversity = []
-        for lattice in population:
-            jobs.append(pool.apply_async(lattice_dviersity, (lattice, population)))
-        for job in jobs:
-            pop_diversity.append(job.get())
-        diversity.append(np.mean(pop_diversity))
-        print(diversity)"""
 
 

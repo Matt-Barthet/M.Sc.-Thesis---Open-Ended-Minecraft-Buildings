@@ -202,8 +202,7 @@ def load_model(name):
     loaded_model_json = json_file.read()
     json_file.close()
     loaded_model = model_from_json(loaded_model_json)
-    loaded_model.load_weights(name + ".h5")
-    # print("Loaded model " + name + " from disk.")
+    loaded_model.load_weights(filepath=name + '.h5')
     return loaded_model
 
 
@@ -262,7 +261,7 @@ def add_noise(lattice):
     return noisy_lattice
 
 
-def test_accuracy(encoder, decoder, test):
+def test_accuracy(encoder, decoder, test, mean=True):
     """
     Function to test the accuracy of an auto-encoder model through a given test population.
 
@@ -279,7 +278,11 @@ def test_accuracy(encoder, decoder, test):
         integer_reconstruct = convert_to_integer(reconstructed)
         error.append(calculate_error(lattice, integer_reconstruct))
         # auto_encoder_plot(lattice, compressed, integer_reconstruct, error[-1])
-    return np.round(np.mean(error), 2)
+
+    if mean:
+        return np.round(np.mean(error), 2)
+    else:
+        return np.round(error, 2)
 
 
 def calculate_error(original, reconstruction):
