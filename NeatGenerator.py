@@ -1,8 +1,9 @@
 import os
+import pickle
 from multiprocessing.pool import Pool
 from sklearn_extra.cluster import KMedoids
 from tensorflow.python.keras.utils.np_utils import to_categorical
-from Autoencoder import add_noise, convert_to_integer, load_model
+from Autoencoder import add_noise, convert_to_integer, load_model, create_auto_encoder, auto_encoder_3d
 from Delenox_Config import *
 from Visualization import *
 from Constraints import *
@@ -46,15 +47,15 @@ class NeatGenerator:
         self.archive_lattices = []
         self.pool = None
 
-    def run_neat(self, phase_number, queue=None):
+    def run_neat(self, phase_number, static=False):
         """
         Executes one "exploration" phase of the Delenox pipeline.  A set number of independent evolutionary runs
         are completed and the top N most novel individuals are taken and inserted into a population.  At the of
         the phase we look at the distribution of individuals in the population according to numerous metrics and
         statistics regarding the evolution of the populations such as the speciation, novelty scores etc.
 
+        :param static:
         :param phase_number:
-        :param queue:
         :return: the generated population of lattices and statistics variables from the runs of the phase.
         """
         # self.archive.clear()
@@ -63,8 +64,14 @@ class NeatGenerator:
 
         self.current_gen = 0
         self.current_phase = phase_number
-        self.encoder = load_model("./Delenox_Experiment_Data/Phase{:d}/encoder".format(phase_number))
-        self.decoder = load_model("./Delenox_Experiment_Data/Phase{:d}/decoder".format(phase_number))
+
+        if phase_number > 0 and static is False:
+            self.encoder = load_model("./Delenox_Experiment_Data/Phase{:d}/encoder".format(phase_number - 1))
+            self.decoder = load_model("./Delenox_Experiment_Data/Phase{:d}/decoder".format(phase_number - 1))
+        else:
+            self.encoder = load_model("./Delenox_Experiment_Data/Seed/encoder")
+            self.decoder = load_model("./Delenox_Experiment_Data/Seed/decoder")
+
         self.pool = Pool(thread_count)
         self.population.run(self.novelty_search_parallel, generations_per_run)
         self.pool.close()
@@ -74,9 +81,6 @@ class NeatGenerator:
         self.neat_metrics['Best Novelty'] = self.population.reporters.reporters[0].get_fitness_stat(max)
         self.encoder = None
         self.decoder = None
-
-        if queue is not None:
-            queue.put([self, self.phase_best_fit, self.neat_metrics])
 
         return self, self.phase_best_fit, self.neat_metrics
 
@@ -137,10 +141,12 @@ class NeatGenerator:
             most_novel_lattice = lattices[sorted_keys[-1]]
             least = lattices[sorted_keys[0]]
             mid = lattices[sorted_keys[int(len(sorted_keys) / 2)]]
-            novelty_voxel_plot([convert_to_integer(least), convert_to_integer(mid), convert_to_integer(most_novel_lattice)],
-                               self.current_gen + 1, self.population_id, self.current_phase)
+            novelty_voxel_plot(
+                [convert_to_integer(least), convert_to_integer(mid), convert_to_integer(most_novel_lattice)],
+                self.current_gen + 1, self.population_id, self.current_phase)
         if self.current_gen + 1 == generations_per_run:
-            np.save("./Delenox_Experiment_Data/Phase{:d}/Population_{:d}.npy".format(self.current_phase, self.population_id), lattices)
+            np.save("./Delenox_Experiment_Data/Phase{:d}/Population_{:d}.npy".format(self.current_phase,
+                                                                                     self.population_id), lattices)
             for individual in range(np.min([best_fit_count, len(lattices)])):
                 self.phase_best_fit.append(lattices[sorted_keys[-individual]])
 
@@ -159,7 +165,8 @@ class NeatGenerator:
         self.neat_metrics['Archive Size'].append(len(self.archive))
         self.neat_metrics['Species Count'].append(len(self.population.species.species))
 
-        print("[Population {:d}]: Generation {:d} took {:2f} seconds.".format(self.population_id, self.current_gen, time.time() - start))
+        print("[Population {:d}]: Generation {:d} took {:2f} seconds.".format(self.population_id, self.current_gen,
+                                                                              time.time() - start))
         print("Average Hidden Layer Size: {:2.2f}".format(node_complexity))
         print("Average Connection Count: {:2.2f}".format(connection_complexity))
         print("Size of the Novelty Archive: {:d}".format(len(self.archive)))
@@ -285,6 +292,28 @@ def create_population(config, pop_size=population_size):
     config.__setattr__("pop_size", pop_size)
     population = neat.Population(config)
     return population
+
+
+def create_seed_files(config):
+    """
+
+    :param config:
+    :return:
+    """
+    training_population, _ = create_population_lattices(config, False)
+    np.save("./Delenox_Experiment_Data/Seed/Initial_Training_Set.npy", np.asarray(training_population))
+    _ = create_auto_encoder(model_type=auto_encoder_3d,
+                            phase=0,
+                            population=np.asarray(training_population),
+                            noisy=None)
+    for runs in range(runs_per_phase):
+        generator = NeatGenerator(
+            config=config,
+            complexity=0,
+            population_id=runs
+        )
+        with open("Neat_Population_{:d}".format(runs), "wb+") as f:
+            pickle.dump(generator, f)
 
 
 def cluster_analysis(population, metrics, title, axis_labels, config):
