@@ -1,9 +1,8 @@
 import time
 import matplotlib.pyplot as plt
 import numpy as np
-
 from Delenox_Config import current_run, runs_per_phase
-
+from mpl_toolkits.mplot3d import axes3d, Axes3D #<-- Note the capitalization!
 
 def plot_statistics(values, confidence, key, phase):
     plt.figure()
@@ -47,7 +46,7 @@ def novelty_voxel_plot(lattices, generation, population_id, phase):
     # np.save("./Generated_Database/Least_Novel_" + str(time.time()) + ".npy", lattices[0])
     # np.save("./Generated_Database/Mid_Novel_" + str(time.time()) + ".npy", lattices[1])
     # np.save("./Generated_Database/Most_Novel_" + str(time.time()) + ".npy", lattices[2])
-    # plt.show()
+    plt.show()
 
 
 def expressive_graph(x, y, title, x_label, y_label):

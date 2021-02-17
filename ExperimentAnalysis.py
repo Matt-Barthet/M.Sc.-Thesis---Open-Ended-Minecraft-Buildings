@@ -8,8 +8,14 @@ import tensorflow as tf
 from scipy.special import softmax
 from scipy.stats import entropy
 from sklearn.decomposition import PCA
+from sklearn.linear_model import LinearRegression
+from tensorflow.python.keras.utils.np_utils import to_categorical
+from mpl_toolkits.mplot3d import axes3d, Axes3D #<-- Note the capitalization!
+
 from Autoencoder import load_model, convert_to_integer, test_accuracy, create_auto_encoder, auto_encoder_3d
+from Constraints import apply_constraints
 from Delenox_Config import value_range
+from Visualization import voxel_plot
 
 plt.style.use('seaborn')
 
@@ -89,7 +95,7 @@ def pca_buildings(populations, phases):
         g = (g.map(plt.scatter, "x", "y", edgecolor="w", s=10, alpha=0.5))
         plt.subplots_adjust(left=0.032, right=0.992, top=0.836, bottom=0.143)
 
-    plt.figure()
+    """plt.figure()
     plt.subplots_adjust(left=0.080, right=0.790, top=0.915, bottom=0.090)
     ax = sns.lineplot(x='Phase', y='Average Euclidean Distance', hue='Experiment', data=eucl_df, ci='sd')
     ax.set_title('Average PW Euclidean Distance using PCA')
@@ -98,6 +104,20 @@ def pca_buildings(populations, phases):
     frame = legend.get_frame()
     frame.set_facecolor('white')
     frame.set_edgecolor('black')
+    plt.show()"""
+
+    plt.figure()
+    plt.title("PCA Diversity - Regression Lines")
+    plt.xlabel("Phase")
+    plt.ylabel("Average Euclidean Distance")
+
+    for label in labels:
+        subset = eucl_df[eucl_df['Experiment'] == label]
+        linear_regressor = LinearRegression()
+        linear_regressor.fit(subset['Phase'].values.reshape(-1, 1), subset['Average Euclidean Distance'].values.reshape(-1, 1))
+        Y_pred = linear_regressor.predict(subset['Phase'].values.reshape(-1, 1))
+        plt.plot(subset['Phase'], Y_pred)
+
     plt.show()
 
 
@@ -359,7 +379,13 @@ if __name__ == '__main__':
         np.load("./Retrain AE (Full Archive History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
     ]
 
-    novel_diversity(training_sets)
+    lattices = np.load("Ahousev5_Buildings_Varied.npy")
+    for lattice in lattices:
+        lattice = apply_constraints(lattice)[1]
+        voxel_plot(lattice, "")
+        example = to_categorical(lattice, num_classes=5)
+
+    # novel_diversity(training_sets)
     # pca_buildings(training_sets, range(7))
     # accuracy_plot(training_sets, range(7), directories)
     # plot_metric(metrics, labels, colors, keys)

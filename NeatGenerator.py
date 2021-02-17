@@ -1,7 +1,7 @@
 import os
 import pickle
 from multiprocessing.pool import Pool
-from sklearn_extra.cluster import KMedoids
+# from sklearn_extra.cluster import KMedoids
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Autoencoder import add_noise, convert_to_integer, load_model, create_auto_encoder, auto_encoder_3d
 from Delenox_Config import *
@@ -79,6 +79,8 @@ class NeatGenerator:
 
         self.neat_metrics['Mean Novelty'] = self.population.reporters.reporters[0].get_fitness_mean()
         self.neat_metrics['Best Novelty'] = self.population.reporters.reporters[0].get_fitness_stat(max)
+
+        self.pool = None
         self.encoder = None
         self.decoder = None
 
@@ -97,10 +99,7 @@ class NeatGenerator:
         start = time.time()
         compressed_population = {}
         lattices = {}
-        remove = []
-
-        metrics_this_run = {"Lattice Stability": {}, "Building Area": {}, "Building Volume": {},
-                            "Bounding Box Volume": {}, "Interior Volume": {}, "Depth Middle": {}, "Width Middle": {}}
+        remove = 0
 
         jobs = []
 
@@ -109,12 +108,11 @@ class NeatGenerator:
         for job, (genome_id, genome) in zip(jobs, genomes):
             lattice, _, feasible, metrics = job.get()
             if not feasible:
-                remove.append(genome_id)
+                del self.population.population[genome_id]
                 genome.fitness = 0
+                remove += 1
             else:
                 lattices.update({genome_id: lattice})
-                """for key in metrics_this_run.keys():
-                    metrics_this_run[key].update({genome_id: metrics[key]})"""
 
         for genome_id, lattice in lattices.items():
             compressed_population.update({genome_id: self.encoder.predict(lattice[None])[0]})
@@ -144,6 +142,7 @@ class NeatGenerator:
             novelty_voxel_plot(
                 [convert_to_integer(least), convert_to_integer(mid), convert_to_integer(most_novel_lattice)],
                 self.current_gen + 1, self.population_id, self.current_phase)
+
         if self.current_gen + 1 == generations_per_run:
             np.save("./Delenox_Experiment_Data/Phase{:d}/Population_{:d}.npy".format(self.current_phase,
                                                                                      self.population_id), lattices)
@@ -170,10 +169,7 @@ class NeatGenerator:
         print("Average Hidden Layer Size: {:2.2f}".format(node_complexity))
         print("Average Connection Count: {:2.2f}".format(connection_complexity))
         print("Size of the Novelty Archive: {:d}".format(len(self.archive)))
-        print("Number of Infeasible Buildings:", len(remove), "\n")
-
-        for key in remove:
-            del self.population.population[key]
+        print("Number of Infeasible Buildings:", remove, "\n")
 
         self.current_gen += 1
 

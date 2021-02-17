@@ -1,8 +1,8 @@
-from scipy.ndimage import center_of_mass
-from Delenox_Config import lattice_dimensions, value_range
 import numpy as np
-from Visualization import voxel_plot
+from scipy.ndimage import center_of_mass
 from scipy.spatial import distance
+from Delenox_Config import lattice_dimensions, value_range
+from Visualization import voxel_plot
 
 materials = {'External_Space': 0, 'Interior_Space': 1, 'Wall': 2, 'Floor': 3, 'Roof': 4}
 
@@ -25,6 +25,77 @@ def apply_constraints(lattice):
         return True, lattice, metrics
     except InfeasibleError:
         return False, lattice, []
+
+
+def assess_quality(lattice):
+    """
+    Assess the quality of the given lattice, determining its feasibility and returning a list of metrics.
+    :param lattice: Input lattice.
+    :return list of metrics:
+    """
+    interior_count = 0
+    roof_count = 0
+    walls = 0
+    floor_count = 0
+    total_count = 0
+
+    horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
+    # (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
+
+    width = (horizontal_bounds[1] - horizontal_bounds[0])
+    height = vertical_bounds[1]
+    depth = (depth_bounds[1] - depth_bounds[0])
+
+    bounding_box_volume = width * depth * height
+    bounding_box_area = (width * depth + width * height + height * depth) * 2
+    lattice_stability, floor_stability = stability(lattice)
+
+    for (x, y, z) in value_range:
+        if lattice[x][y][z] > 0:
+            total_count += 1
+
+            if lattice[x][y][z] == 2:
+                walls += 1
+            elif lattice[x][y][z] == 4:
+                roof_count += 1
+            elif lattice[x][y][z] == 3:
+                floor_count += 1
+            elif lattice[x][y][z] == 1:
+                interior_count += 1
+
+    try:
+
+        if total_count == 0 or total_count == lattice_dimensions[0] ** 3:
+            raise ZeroDivisionError
+
+        if interior_count / total_count < 0.3:
+            raise InfeasibleError
+
+        if width < 10 or height < 10 or depth < 10:
+            raise InfeasibleError
+
+        for x in range(20):
+            for y in range(20):
+                for z in range(4):
+
+                    # If there's a roof voxel, raise a roof proportion error
+                    if lattice[x][y][z] == 4:
+                        raise InfeasibleError
+
+                    # If there's a wall voxel, check if a door frame can fit, if not raise an error
+                    if lattice[x][y][z] == 2:
+                        pass
+
+        building_bounding_area = (walls + roof_count + floor_count) / bounding_box_area
+        building_bounding_volume = total_count / bounding_box_volume
+        bounding_lattice_volume = bounding_box_volume / lattice_dimensions[0] ** 3
+        interior_volume = interior_count / lattice_dimensions[0] ** 3
+
+        """if building_bounding_area < 0.7 or (interior_volume < 0.2 or interior_volume > 0.6) or floor_stability > 4:
+            raise InfeasibleError"""
+
+    except ZeroDivisionError:
+        raise InfeasibleError
 
 
 def bounding_box(lattice):
@@ -154,59 +225,6 @@ def stability(lattice):
         (floor_x, floor_y) = center_of_mass(floor_plan)
         return distance.euclidean((floor_x, floor_y, 0), lattice_com), distance.euclidean((floor_x, floor_y), (lattice_com[0], lattice_com[1]))
     except (ValueError, RuntimeError):
-        raise InfeasibleError
-
-
-def assess_quality(lattice):
-    """
-    :param lattice:
-    :return:
-    """
-    interior_count = 0
-    roof_count = 0
-    walls = 0
-    floor_count = 0
-    total_count = 0
-
-    """horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
-    (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
-
-    width = (horizontal_bounds[1] - horizontal_bounds[0])
-    height = vertical_bounds[1]
-    depth = (depth_bounds[1] - depth_bounds[0])
-
-    bounding_box_volume = width * depth * height
-    bounding_box_area = (width * depth + width * height + height * depth) * 2
-    lattice_stability, floor_stability = stability(lattice)
-    """
-    for (x, y, z) in value_range:
-        if lattice[x][y][z] > 0:
-            total_count += 1
-            """if lattice[x][y][z] == 2:
-                walls += 1
-            elif lattice[x][y][z] == 4:
-                roof_count += 1
-            elif lattice[x][y][z] == 3:
-                floor_count += 1
-            elif lattice[x][y][z] == 1:
-                interior_count += 1"""
-    try:
-        if total_count == 0 or total_count == lattice_dimensions[0] ** 3:
-            raise ZeroDivisionError
-
-        """building_bounding_area = (walls + roof_count + floor_count) / bounding_box_area
-        building_bounding_volume = total_count / bounding_box_volume
-        bounding_lattice_volume = bounding_box_volume / lattice_dimensions[0] ** 3
-        interior_volume = interior_count / lattice_dimensions[0] ** 3
-
-        if building_bounding_area < 0.7 or (interior_volume < 0.2 or interior_volume > 0.6) or floor_stability > 4:
-            raise InfeasibleError
-
-        return {"Building Area": building_bounding_area, "Building Volume": building_bounding_volume,
-                "Bounding Box Volume": bounding_lattice_volume, "Lattice Stability": lattice_stability,
-                "Width Middle": horizontal_middle, "Depth Middle": depth_middle, "Interior Volume": interior_volume}"""
-
-    except ZeroDivisionError:
         raise InfeasibleError
 
 
