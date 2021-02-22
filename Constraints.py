@@ -6,10 +6,28 @@ from Visualization import voxel_plot
 
 materials = {'External_Space': 0, 'Interior_Space': 1, 'Wall': 2, 'Floor': 3, 'Roof': 4}
 
+door_frames_ew = [
+    np.array([[[3, 1, 1, 1], [3, 1, 1, 1], [3, 1, 1, 1]], [[3, 2, 2, 2], [3, 2, 2, 2], [3, 2, 2, 2]]]),
+    np.array([[[3, 2, 2, 2], [3, 2, 2, 2], [3, 2, 2, 2]], [[3, 1, 1, 1], [3, 1, 1, 1], [3, 1, 1, 1]]])
+]
+
+door_frames_ns = [
+    np.array([[[3, 2, 2, 2], [3, 1, 1, 1]], [[3, 2, 2, 2], [3, 1, 1, 1]], [[3, 2, 2, 2], [3, 1, 1, 1]]]),
+    np.array([[[3, 1, 1, 1], [3, 2, 2, 2]], [[3, 1, 1, 1], [3, 2, 2, 2]], [[3, 1, 1, 1], [3, 2, 2, 2]]])
+]
 
 class InfeasibleError(Exception):
     pass
-
+class InfeasibleRoof(Exception):
+    pass
+class InfeasibleEntrance(Exception):
+    pass
+class InfeasibleVoxelCount(Exception):
+    pass
+class InfeasibleBoundingBox(Exception):
+    pass
+class InfeasibleInteriorVolume(Exception):
+    pass
 
 def apply_constraints(lattice):
     """
@@ -40,15 +58,12 @@ def assess_quality(lattice):
     total_count = 0
 
     horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
-    # (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
-
     width = (horizontal_bounds[1] - horizontal_bounds[0])
     height = vertical_bounds[1]
     depth = (depth_bounds[1] - depth_bounds[0])
 
-    bounding_box_volume = width * depth * height
-    bounding_box_area = (width * depth + width * height + height * depth) * 2
-    lattice_stability, floor_stability = stability(lattice)
+    # (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
+    # lattice_stability, floor_stability = stability(lattice)
 
     for (x, y, z) in value_range:
         if lattice[x][y][z] > 0:
@@ -66,37 +81,55 @@ def assess_quality(lattice):
     try:
 
         if total_count == 0 or total_count == lattice_dimensions[0] ** 3:
-            raise ZeroDivisionError
+            raise InfeasibleVoxelCount
 
-        if interior_count / total_count < 0.3:
-            raise InfeasibleError
+        """if interior_count / total_count < 0.3:
+            raise InfeasibleInteriorVolume
 
         if width < 10 or height < 10 or depth < 10:
-            raise InfeasibleError
+            raise InfeasibleBoundingBox
+
+        entrance_possible = False
 
         for x in range(20):
             for y in range(20):
+
+                # If a possible entrance hasn't been found
+                if not entrance_possible:
+
+                    # If there's a floor voxel check if an entrance can be placed here
+                    if lattice[x][y][0] == 3:
+
+                        for frame in door_frames_ns:
+                            if np.array_equal(frame, lattice[x:x+3, y:y+2, 0:4]):
+                                entrance_possible = True
+                                break
+
+                        for frame in door_frames_ew:
+                            if np.array_equal(frame, lattice[x:x+2, y:y+3, 0:4]):
+                                entrance_possible = True
+                                break
+
+
+                # If there's a roof voxel in the bottom four voxels, raise a roof proportion error
                 for z in range(4):
-
-                    # If there's a roof voxel, raise a roof proportion error
                     if lattice[x][y][z] == 4:
-                        raise InfeasibleError
+                        raise InfeasibleRoof
 
-                    # If there's a wall voxel, check if a door frame can fit, if not raise an error
-                    if lattice[x][y][z] == 2:
-                        pass
+        if not entrance_possible:
+            # voxel_plot(lattice, "Infeasible")
+            raise InfeasibleEntrance"""
 
-        building_bounding_area = (walls + roof_count + floor_count) / bounding_box_area
-        building_bounding_volume = total_count / bounding_box_volume
-        bounding_lattice_volume = bounding_box_volume / lattice_dimensions[0] ** 3
-        interior_volume = interior_count / lattice_dimensions[0] ** 3
-
-        """if building_bounding_area < 0.7 or (interior_volume < 0.2 or interior_volume > 0.6) or floor_stability > 4:
-            raise InfeasibleError"""
-
-    except ZeroDivisionError:
+    except InfeasibleVoxelCount:
         raise InfeasibleError
-
+    except InfeasibleRoof:
+        raise InfeasibleError
+    except InfeasibleEntrance:
+        raise InfeasibleError
+    except InfeasibleBoundingBox:
+        raise InfeasibleError
+    except InfeasibleInteriorVolume:
+        raise InfeasibleError
 
 def bounding_box(lattice):
     """

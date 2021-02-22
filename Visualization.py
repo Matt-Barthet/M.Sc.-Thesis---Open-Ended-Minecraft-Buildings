@@ -6,7 +6,7 @@ from mpl_toolkits.mplot3d import axes3d, Axes3D #<-- Note the capitalization!
 
 def plot_statistics(values, confidence, key, phase):
     plt.figure()
-    plt.title("{} vs Generation over {:d} Runs.".format(key, runs_per_phase))
+    plt.title("{} vs Generation using {:d} Populations.".format(key, runs_per_phase))
     plt.xlabel("Generation")
     plt.ylabel(key)
     plt.errorbar(x=range(len(values)),
@@ -129,5 +129,7 @@ def visualize_training(history, phase):
     plt.ylabel('Categorical Accuracy')
     plt.xlabel('Epoch')
     plt.legend(['Training Set', 'Validation_Set'], loc='upper left')
-    plt.savefig("./Delenox_Experiment_Data/Phase{}/Training_History.png".format(phase))
-
+    if phase == -1:
+        plt.savefig("./Delenox_Experiment_Data/Seed/Training_History.png")
+    else:
+        plt.savefig("./Delenox_Experiment_Data/Phase{}/Training_History.png".format(phase))

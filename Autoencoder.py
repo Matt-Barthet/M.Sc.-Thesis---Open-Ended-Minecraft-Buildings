@@ -52,8 +52,12 @@ def create_auto_encoder(model_type, phase, population=None, noisy=None, save=Tru
         visualize_training(history, phase)
 
     if save:
-        save_model(encoder_model, "./Delenox_Experiment_Data/Phase{:d}/encoder".format(phase))
-        save_model(decoder_model, "./Delenox_Experiment_Data/Phase{:d}/decoder".format(phase))
+        if phase == -1:
+            save_model(encoder_model, "./Delenox_Experiment_Data/Seed/encoder")
+            save_model(decoder_model, "./Delenox_Experiment_Data/Seed/decoder")
+        else:
+            save_model(encoder_model, "./Delenox_Experiment_Data/Phase{:d}/encoder".format(phase))
+            save_model(decoder_model, "./Delenox_Experiment_Data/Phase{:d}/decoder".format(phase))
 
     return ae, encoder_model, decoder_model
 

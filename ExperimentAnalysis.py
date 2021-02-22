@@ -317,6 +317,39 @@ def fix_bugged_population(population):
     return fixed
 
 
+"""
+def cluster_analysis(population, metrics, title, axis_labels, config):
+    :param population:
+    :param metrics:
+    :param title:
+    :param axis_labels:
+    :param config:
+    :return:
+    clustering = KMedoids(n_clusters=5)
+    data = np.asarray(list(zip(list(metrics[0].values()), list(metrics[1].values()))))
+    data_dict = {k: [d[k] for d in metrics] for k in metrics[0].keys()}
+    clustering.fit(data)
+    clusters = clustering.predict(data)
+    medoids = clustering.cluster_centers_
+
+    for medoid in medoids:
+        for genome, metrics in data_dict.items():
+            if list(medoid) == list(metrics):
+                medoid_lattice = generate_lattice(population[genome], config, False)[0][0]
+                voxel_plot(convert_to_integer(medoid_lattice), "Medoid at " + str(list(medoid)), "")
+                break
+
+    plt.figure()
+    plt.scatter(data[:, 0], data[:, 1], c=clusters, s=50, cmap='viridis')
+    plt.scatter(medoids[:, 0], medoids[:, 1], c='black', s=200, alpha=0.5)
+    plt.xlabel(axis_labels[0])
+    plt.ylabel(axis_labels[1])
+    plt.title(title)
+    plt.savefig("./Delenox_Experiment_Data/Run" + str(current_run) + "/Clustering_" + str(time.time()) + ".png")
+    plt.show()
+"""
+
+
 if __name__ == '__main__':
 
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
@@ -389,6 +422,3 @@ if __name__ == '__main__':
     # pca_buildings(training_sets, range(7))
     # accuracy_plot(training_sets, range(7), directories)
     # plot_metric(metrics, labels, colors, keys)
-
-
-

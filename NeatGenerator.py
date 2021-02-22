@@ -1,14 +1,13 @@
-import os
 import pickle
 from multiprocessing.pool import Pool
-# from sklearn_extra.cluster import KMedoids
+import neat
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Autoencoder import add_noise, convert_to_integer, load_model, create_auto_encoder, auto_encoder_3d
+from Constraints import *
 from Delenox_Config import *
 from Visualization import *
-from Constraints import *
-import time
-import neat
+import tensorflow as tf
+import os
 
 
 class NeatGenerator:
@@ -19,11 +18,10 @@ class NeatGenerator:
     neighbors as well as to an archive of unique novel individuals from past generations.
     """
 
-    def __init__(self, complexity, config, population_id):
+    def __init__(self, config, population_id):
         self.current_phase = 0
         self.config = config
         self.config.__setattr__("pop_size", population_size)
-        self.config.__getattribute__("genome_config").num_hidden = complexity
         self.population = neat.Population(self.config)
         self.population.add_reporter(neat.StatisticsReporter())
         self.encoder = None
@@ -32,17 +30,13 @@ class NeatGenerator:
         self.current_gen = 0
         self.phase_best_fit = []
         self.population_id = population_id
-        self.building_metrics = {"Lattice Stability": {}, "Building Area": {}, "Building Volume": {},
-                                 "Bounding Box Volume": {},
-                                 "Interior Volume": {}, "Depth Middle": {}, "Width Middle": {}
-                                 }
-
         self.neat_metrics = {'Mean Novelty': [],
                              'Best Novelty': [],
                              'Node Complexity': [],
                              'Connection Complexity': [],
                              'Archive Size': [],
                              'Species Count': [],
+                             'Infeasible Size': [],
                              }
         self.archive_lattices = []
         self.pool = None
@@ -163,6 +157,7 @@ class NeatGenerator:
         self.neat_metrics['Connection Complexity'].append(connection_complexity)
         self.neat_metrics['Archive Size'].append(len(self.archive))
         self.neat_metrics['Species Count'].append(len(self.population.species.species))
+        self.neat_metrics['Infeasible Size'].append(len(self.population.species.species))
 
         print("[Population {:d}]: Generation {:d} took {:2f} seconds.".format(self.population_id, self.current_gen,
                                                                               time.time() - start))
@@ -175,6 +170,12 @@ class NeatGenerator:
 
 
 def voxel_based_diversity(genome_id, lattice, lattices):
+    """
+    :param genome_id:
+    :param lattice:
+    :param lattices:
+    :return:
+    """
     pixel_diversity = 0
     for compare in lattices:
         for (x, y, z) in value_range:
@@ -299,48 +300,41 @@ def create_seed_files(config):
     training_population, _ = create_population_lattices(config, False)
     np.save("./Delenox_Experiment_Data/Seed/Initial_Training_Set.npy", np.asarray(training_population))
     _ = create_auto_encoder(model_type=auto_encoder_3d,
-                            phase=0,
+                            phase=-1,
                             population=np.asarray(training_population),
                             noisy=None)
     for runs in range(runs_per_phase):
         generator = NeatGenerator(
             config=config,
-            complexity=0,
             population_id=runs
         )
-        with open("Neat_Population_{:d}".format(runs), "wb+") as f:
+        with open("./Delenox_Experiment_Data/Seed/Neat_Population_{:d}.pkl".format(runs), "wb+") as f:
             pickle.dump(generator, f)
 
 
-def cluster_analysis(population, metrics, title, axis_labels, config):
-    """
+if __name__ == "__main__":
 
-    :param population:
-    :param metrics:
-    :param title:
-    :param axis_labels:
-    :param config:
-    :return:
-    """
-    clustering = KMedoids(n_clusters=5)
-    data = np.asarray(list(zip(list(metrics[0].values()), list(metrics[1].values()))))
-    data_dict = {k: [d[k] for d in metrics] for k in metrics[0].keys()}
-    clustering.fit(data)
-    clusters = clustering.predict(data)
-    medoids = clustering.cluster_centers_
+    os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+    physical_devices = tf.config.experimental.list_physical_devices('GPU')
+    assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-    for medoid in medoids:
-        for genome, metrics in data_dict.items():
-            if list(medoid) == list(metrics):
-                medoid_lattice = generate_lattice(population[genome], config, False)[0][0]
-                voxel_plot(convert_to_integer(medoid_lattice), "Medoid at " + str(list(medoid)), "")
-                break
+    # Load configuration file according to the given path and setting relevant parameters.
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, 'neat.cfg')
+    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet,
+                         neat.DefaultStagnation, config_path)
+    config.genome_config.add_activation('sin_adjusted', sinc)
 
-    plt.figure()
-    plt.scatter(data[:, 0], data[:, 1], c=clusters, s=50, cmap='viridis')
-    plt.scatter(medoids[:, 0], medoids[:, 1], c='black', s=200, alpha=0.5)
-    plt.xlabel(axis_labels[0])
-    plt.ylabel(axis_labels[1])
-    plt.title(title)
-    plt.savefig("./Delenox_Experiment_Data/Run" + str(current_run) + "/Clustering_" + str(time.time()) + ".png")
-    plt.show()
+    # create_seed_files(config)
+
+    generator = pickle.load(open("Delenox_Experiment_Data/Seed/Neat_Population_0.pkl", "rb"))
+
+    (generator, best_fit, metrics) = generator.run_neat(0, False)
+
+    plot_statistics(
+        values=np.mean(metrics['Infeasible Size'], axis=-1),
+        confidence=np.std(metrics['Infeasible Size'], axis=-1),
+        key='Infeasible Size',
+        phase=0
+    )
