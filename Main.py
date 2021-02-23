@@ -1,26 +1,9 @@
-import os
 import pickle
 import matplotlib.pyplot as plt
-import neat
-import tensorflow as tf
 from Autoencoder import auto_encoder_3d, create_auto_encoder
 from Delenox_Config import *
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
 if __name__ == '__main__':
-
-    os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-    physical_devices = tf.config.experimental.list_physical_devices('GPU')
-    assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
-
-    # Load configuration file according to the given path and setting relevant parameters.
-    local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, 'neat.cfg')
-    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet,
-                         neat.DefaultStagnation, config_path)
-    config.genome_config.add_activation('sin_adjusted', sinc)
 
     # Lists for the training population of an iteration, and the history of all training populations
     training_history = []
@@ -74,7 +57,7 @@ if __name__ == '__main__':
         # Create a new auto-encoder with the data generated from this iteration's exploration phase
         ae, encoder, decoder = create_auto_encoder(model_type=auto_encoder_3d,
                                                    phase=phase,
-                                                   population=np.asarray(training_population),
+                                                   population=np.asarray(training_history),
                                                    noisy=None)
 
         # Save the novel population to a numpy file and clear the python list

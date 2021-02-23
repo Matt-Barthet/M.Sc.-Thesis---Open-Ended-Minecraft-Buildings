@@ -16,18 +16,34 @@ door_frames_ns = [
     np.array([[[3, 1, 1, 1], [3, 2, 2, 2]], [[3, 1, 1, 1], [3, 2, 2, 2]], [[3, 1, 1, 1], [3, 2, 2, 2]]])
 ]
 
+
 class InfeasibleError(Exception):
     pass
+
+
 class InfeasibleRoof(Exception):
     pass
+
+
 class InfeasibleEntrance(Exception):
     pass
+
+
 class InfeasibleVoxelCount(Exception):
     pass
+
+
 class InfeasibleBoundingBox(Exception):
     pass
+
+
 class InfeasibleInteriorVolume(Exception):
     pass
+
+
+class InfeasibleLateralStability(Exception):
+    pass
+
 
 def apply_constraints(lattice):
     """
@@ -63,7 +79,7 @@ def assess_quality(lattice):
     depth = (depth_bounds[1] - depth_bounds[0])
 
     # (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
-    # lattice_stability, floor_stability = stability(lattice)
+    lattice_stability, floor_stability = stability(lattice)
 
     for (x, y, z) in value_range:
         if lattice[x][y][z] > 0:
@@ -83,13 +99,17 @@ def assess_quality(lattice):
         if total_count == 0 or total_count == lattice_dimensions[0] ** 3:
             raise InfeasibleVoxelCount
 
-        """if interior_count / total_count < 0.3:
-            raise InfeasibleInteriorVolume
-
-        if width < 10 or height < 10 or depth < 10:
+        """if width < 10 or height < 10 or depth < 10:
             raise InfeasibleBoundingBox
+        """
 
-        entrance_possible = False
+        """if interior_count / total_count < 0.3:
+            raise InfeasibleInteriorVolume"""
+
+        if floor_stability > 6:
+            raise InfeasibleLateralStability
+
+        """entrance_possible = False
 
         for x in range(20):
             for y in range(20):
@@ -110,14 +130,12 @@ def assess_quality(lattice):
                                 entrance_possible = True
                                 break
 
-
                 # If there's a roof voxel in the bottom four voxels, raise a roof proportion error
                 for z in range(4):
                     if lattice[x][y][z] == 4:
-                        raise InfeasibleRoof
+                        raise InfeasibleRoof"""
 
-        if not entrance_possible:
-            # voxel_plot(lattice, "Infeasible")
+        """if not entrance_possible:
             raise InfeasibleEntrance"""
 
     except InfeasibleVoxelCount:
@@ -130,6 +148,9 @@ def assess_quality(lattice):
         raise InfeasibleError
     except InfeasibleInteriorVolume:
         raise InfeasibleError
+    except InfeasibleLateralStability:
+        raise InfeasibleError
+
 
 def bounding_box(lattice):
     """

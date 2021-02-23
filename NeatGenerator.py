@@ -1,13 +1,9 @@
-import pickle
 from multiprocessing.pool import Pool
-import neat
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Autoencoder import add_noise, convert_to_integer, load_model, create_auto_encoder, auto_encoder_3d
 from Constraints import *
 from Delenox_Config import *
 from Visualization import *
-import tensorflow as tf
-import os
 
 
 class NeatGenerator:
@@ -19,27 +15,21 @@ class NeatGenerator:
     """
 
     def __init__(self, config, population_id):
-        self.current_phase = 0
+        self.population_id = population_id
         self.config = config
         self.config.__setattr__("pop_size", population_size)
         self.population = neat.Population(self.config)
         self.population.add_reporter(neat.StatisticsReporter())
+        self.current_phase = 0
+        self.current_gen = 0
         self.encoder = None
         self.decoder = None
-        self.archive = {}
-        self.current_gen = 0
-        self.phase_best_fit = []
-        self.population_id = population_id
-        self.neat_metrics = {'Mean Novelty': [],
-                             'Best Novelty': [],
-                             'Node Complexity': [],
-                             'Connection Complexity': [],
-                             'Archive Size': [],
-                             'Species Count': [],
-                             'Infeasible Size': [],
-                             }
-        self.archive_lattices = []
         self.pool = None
+        self.archive = {}
+        self.phase_best_fit = []
+        self.archive_lattices = []
+        self.neat_metrics = {'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [], 'Infeasible Size': [],
+                             'Connection Complexity': [], 'Archive Size': [], 'Species Count': []}
 
     def run_neat(self, phase_number, static=False):
         """
@@ -53,9 +43,8 @@ class NeatGenerator:
         :return: the generated population of lattices and statistics variables from the runs of the phase.
         """
         # self.archive.clear()
-        self.phase_best_fit.clear()
         # self.archive_lattices.clear()
-
+        self.phase_best_fit.clear()
         self.current_gen = 0
         self.current_phase = phase_number
 
@@ -67,7 +56,7 @@ class NeatGenerator:
             self.decoder = load_model("./Delenox_Experiment_Data/Seed/decoder")
 
         self.pool = Pool(thread_count)
-        self.population.run(self.novelty_search_parallel, generations_per_run)
+        self.population.run(self.run_one_generation, generations_per_run)
         self.pool.close()
         self.pool.join()
 
@@ -80,7 +69,7 @@ class NeatGenerator:
 
         return self, self.phase_best_fit, self.neat_metrics
 
-    def novelty_search_parallel(self, genomes, config):
+    def run_one_generation(self, genomes, config):
         """
         Multi-process fitness function for the NEAT module of the project.  Implements novelty search and
         scales the workload across the thread count given in the experiment parameters. Assigns a novelty
@@ -159,8 +148,7 @@ class NeatGenerator:
         self.neat_metrics['Species Count'].append(len(self.population.species.species))
         self.neat_metrics['Infeasible Size'].append(len(self.population.species.species))
 
-        print("[Population {:d}]: Generation {:d} took {:2f} seconds.".format(self.population_id, self.current_gen,
-                                                                              time.time() - start))
+        print("[Population {:d}]: Generation {:d} took {:2f} seconds.".format(self.population_id, self.current_gen, time.time() - start))
         print("Average Hidden Layer Size: {:2.2f}".format(node_complexity))
         print("Average Connection Count: {:2.2f}".format(connection_complexity))
         print("Size of the Novelty Archive: {:d}".format(len(self.archive)))
@@ -314,23 +302,25 @@ def create_seed_files(config):
 
 if __name__ == "__main__":
 
-    os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-    physical_devices = tf.config.experimental.list_physical_devices('GPU')
-    assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+    # Name of the experiment, also used as the name of the directory used to store results.
+    experiment = "Lateral Stability"
 
-    # Load configuration file according to the given path and setting relevant parameters.
-    local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, 'neat.cfg')
-    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet,
-                         neat.DefaultStagnation, config_path)
-    config.genome_config.add_activation('sin_adjusted', sinc)
+    if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
+        os.makedirs('Delenox_Experiment_Data/{}'.format(experiment))
+    else:
+        print("Experiment output directory already exists, please choose a new one to avoid overwriting data.")
+        exit(1)
 
-    # create_seed_files(config)
-
+    # Take the first generator from the seed folder and use that to run the experiment
     generator = pickle.load(open("Delenox_Experiment_Data/Seed/Neat_Population_0.pkl", "rb"))
-
     (generator, best_fit, metrics) = generator.run_neat(0, False)
+
+    # Save the metrics to a numpy file for later extraction
+    np.save('Delenox_Experiment_Data/{}/Metrics.npy'.format(experiment), metrics)
+
+    # Save the neat population to pickle file in the experiment folder
+    with open("Delenox_Experiment_Data/{}/Neat_Population.pkl".format(experiment), "wb+") as f:
+        pickle.dump(generator, f)
 
     plot_statistics(
         values=np.mean(metrics['Infeasible Size'], axis=-1),
