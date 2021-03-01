@@ -4,6 +4,7 @@ import numpy as np
 from Delenox_Config import current_run, runs_per_phase
 from mpl_toolkits.mplot3d import axes3d, Axes3D #<-- Note the capitalization!
 
+
 def plot_statistics(values, confidence, key, phase):
     plt.figure()
     plt.title("{} vs Generation using {:d} Populations.".format(key, runs_per_phase))
@@ -32,7 +33,7 @@ def voxel_plot(lattice, title, filename=None, color_one='blue'):
         plt.show()
 
 
-def novelty_voxel_plot(lattices, generation, population_id, phase):
+def novelty_voxel_plot(lattices, generation, population_id, phase, experiment):
     fig = plt.figure(figsize=(15, 6))
     fig.tight_layout(pad=3)
     titles = ["Least Novel", "Mid-Level Novel", "Most Novel"]
@@ -42,11 +43,8 @@ def novelty_voxel_plot(lattices, generation, population_id, phase):
         ax.set_title(titles[number - 1])
         ax = fig.gca(projection='3d')
         ax.voxels(lattices[number - 1], edgecolor="k", facecolors=get_color_map(lattices[number - 1]))
-    plt.savefig("./Delenox_Experiment_Data/Phase{}/Lattices_{:d}_Gen{:d}.png".format(phase, population_id, generation))
-    # np.save("./Generated_Database/Least_Novel_" + str(time.time()) + ".npy", lattices[0])
-    # np.save("./Generated_Database/Mid_Novel_" + str(time.time()) + ".npy", lattices[1])
-    # np.save("./Generated_Database/Most_Novel_" + str(time.time()) + ".npy", lattices[2])
-    plt.show()
+    plt.savefig("./Delenox_Experiment_Data/{}/Phase{}/Lattices_{:d}_Gen{:d}.png".format(experiment, phase, population_id, generation))
+    # plt.show()
 
 
 def expressive_graph(x, y, title, x_label, y_label):
@@ -116,9 +114,10 @@ def get_color_map(lattice, color_one='blue'):
     return color
 
 
-def visualize_training(history, phase):
+def visualize_training(history, phase, experiment):
     """
 
+    :param experiment:
     :param history:
     :param phase:
     """
@@ -132,4 +131,4 @@ def visualize_training(history, phase):
     if phase == -1:
         plt.savefig("./Delenox_Experiment_Data/Seed/Training_History.png")
     else:
-        plt.savefig("./Delenox_Experiment_Data/Phase{}/Training_History.png".format(phase))
+        plt.savefig("./Delenox_Experiment_Data/{}/Phase{}/Training_History.png".format(experiment, phase))

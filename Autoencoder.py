@@ -20,11 +20,12 @@ def update_auto_encoder(ae, population):
     return ae
 
 
-def create_auto_encoder(model_type, phase, population=None, noisy=None, save=True):
+def create_auto_encoder(model_type, phase, experiment, population=None, noisy=None, save=True):
     """
     Function to create and train a de-noising auto-encoder to compress 3D lattices
     into a 1D latent vector representation.
 
+    :param experiment:
     :param phase:
     :param noisy:
     :param model_type: type of auto-encoder to create (2D vs 3D)
@@ -49,15 +50,15 @@ def create_auto_encoder(model_type, phase, population=None, noisy=None, save=Tru
 
         history = ae.fit(x=training, y=training, epochs=no_epochs,
                          batch_size=batch_size, validation_data=(test, test), shuffle=True)
-        visualize_training(history, phase)
+        visualize_training(history, phase, experiment)
 
     if save:
         if phase == -1:
             save_model(encoder_model, "./Delenox_Experiment_Data/Seed/encoder")
             save_model(decoder_model, "./Delenox_Experiment_Data/Seed/decoder")
         else:
-            save_model(encoder_model, "./Delenox_Experiment_Data/Phase{:d}/encoder".format(phase))
-            save_model(decoder_model, "./Delenox_Experiment_Data/Phase{:d}/decoder".format(phase))
+            save_model(encoder_model, "./Delenox_Experiment_Data/{}/Phase{:d}/encoder".format(experiment, phase))
+            save_model(decoder_model, "./Delenox_Experiment_Data/{}/Phase{:d}/decoder".format(experiment, phase))
 
     return ae, encoder_model, decoder_model
 

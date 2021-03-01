@@ -73,26 +73,26 @@ def assess_quality(lattice):
     floor_count = 0
     total_count = 0
 
-    horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
+    """horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
     width = (horizontal_bounds[1] - horizontal_bounds[0])
     height = vertical_bounds[1]
-    depth = (depth_bounds[1] - depth_bounds[0])
+    depth = (depth_bounds[1] - depth_bounds[0])"""
 
     # (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
-    lattice_stability, floor_stability = stability(lattice)
+    # lattice_stability, floor_stability = stability(lattice)
 
     for (x, y, z) in value_range:
         if lattice[x][y][z] > 0:
             total_count += 1
 
-            if lattice[x][y][z] == 2:
+            """if lattice[x][y][z] == 2:
                 walls += 1
             elif lattice[x][y][z] == 4:
                 roof_count += 1
             elif lattice[x][y][z] == 3:
                 floor_count += 1
             elif lattice[x][y][z] == 1:
-                interior_count += 1
+                interior_count += 1"""
 
     try:
 
@@ -106,8 +106,8 @@ def assess_quality(lattice):
         """if interior_count / total_count < 0.3:
             raise InfeasibleInteriorVolume"""
 
-        if floor_stability > 6:
-            raise InfeasibleLateralStability
+        """if floor_stability > 6:
+            raise InfeasibleLateralStability"""
 
         """entrance_possible = False
 

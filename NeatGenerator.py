@@ -13,8 +13,8 @@ class NeatGenerator:
     novelty search as the heuristic, which computes the average Euclidean distance to the k-nearest
     neighbors as well as to an archive of unique novel individuals from past generations.
     """
-
     def __init__(self, config, population_id):
+        self.experiment = ""
         self.population_id = population_id
         self.config = config
         self.config.__setattr__("pop_size", population_size)
@@ -31,13 +31,14 @@ class NeatGenerator:
         self.neat_metrics = {'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [], 'Infeasible Size': [],
                              'Connection Complexity': [], 'Archive Size': [], 'Species Count': []}
 
-    def run_neat(self, phase_number, static=False):
+    def run_neat(self, phase_number, p_experiment, static=False):
         """
         Executes one "exploration" phase of the Delenox pipeline.  A set number of independent evolutionary runs
         are completed and the top N most novel individuals are taken and inserted into a population.  At the of
         the phase we look at the distribution of individuals in the population according to numerous metrics and
         statistics regarding the evolution of the populations such as the speciation, novelty scores etc.
 
+        :param p_experiment:
         :param static:
         :param phase_number:
         :return: the generated population of lattices and statistics variables from the runs of the phase.
@@ -47,10 +48,12 @@ class NeatGenerator:
         self.phase_best_fit.clear()
         self.current_gen = 0
         self.current_phase = phase_number
-
+        self.experiment = p_experiment
         if phase_number > 0 and static is False:
-            self.encoder = load_model("./Delenox_Experiment_Data/Phase{:d}/encoder".format(phase_number - 1))
-            self.decoder = load_model("./Delenox_Experiment_Data/Phase{:d}/decoder".format(phase_number - 1))
+            self.encoder = load_model(
+                "./Delenox_Experiment_Data/{}/Phase{:d}/encoder".format(p_experiment, phase_number - 1))
+            self.decoder = load_model(
+                "./Delenox_Experiment_Data/{}/Phase{:d}/decoder".format(p_experiment, phase_number - 1))
         else:
             self.encoder = load_model("./Delenox_Experiment_Data/Seed/encoder")
             self.decoder = load_model("./Delenox_Experiment_Data/Seed/decoder")
@@ -124,11 +127,12 @@ class NeatGenerator:
             mid = lattices[sorted_keys[int(len(sorted_keys) / 2)]]
             novelty_voxel_plot(
                 [convert_to_integer(least), convert_to_integer(mid), convert_to_integer(most_novel_lattice)],
-                self.current_gen + 1, self.population_id, self.current_phase)
+                self.current_gen + 1, self.population_id, self.current_phase, self.experiment)
 
         if self.current_gen + 1 == generations_per_run:
-            np.save("./Delenox_Experiment_Data/Phase{:d}/Population_{:d}.npy".format(self.current_phase,
-                                                                                     self.population_id), lattices)
+            np.save(
+                "./Delenox_Experiment_Data/{}/Phase{:d}/Population_{:d}.npy".format(self.experiment, self.current_phase,
+                                                                                    self.population_id), lattices)
             for individual in range(np.min([best_fit_count, len(lattices)])):
                 self.phase_best_fit.append(lattices[sorted_keys[-individual]])
 
@@ -148,7 +152,8 @@ class NeatGenerator:
         self.neat_metrics['Species Count'].append(len(self.population.species.species))
         self.neat_metrics['Infeasible Size'].append(len(self.population.species.species))
 
-        print("[Population {:d}]: Generation {:d} took {:2f} seconds.".format(self.population_id, self.current_gen, time.time() - start))
+        print("[Population {:d}]: Generation {:d} took {:2f} seconds.".format(self.population_id, self.current_gen,
+                                                                              time.time() - start))
         print("Average Hidden Layer Size: {:2.2f}".format(node_complexity))
         print("Average Connection Count: {:2.2f}".format(connection_complexity))
         print("Size of the Novelty Archive: {:d}".format(len(self.archive)))
