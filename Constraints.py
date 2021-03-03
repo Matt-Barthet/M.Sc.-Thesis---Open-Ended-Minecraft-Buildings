@@ -73,43 +73,47 @@ def assess_quality(lattice):
     floor_count = 0
     total_count = 0
 
-    """horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
+    horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
     width = (horizontal_bounds[1] - horizontal_bounds[0])
     height = vertical_bounds[1]
-    depth = (depth_bounds[1] - depth_bounds[0])"""
+    depth = (depth_bounds[1] - depth_bounds[0])
 
     # (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
     # lattice_stability, floor_stability = stability(lattice)
 
     for (x, y, z) in value_range:
         if lattice[x][y][z] > 0:
+
             total_count += 1
 
-            """if lattice[x][y][z] == 2:
+            if lattice[x][y][z] == 2:
                 walls += 1
             elif lattice[x][y][z] == 4:
                 roof_count += 1
             elif lattice[x][y][z] == 3:
                 floor_count += 1
             elif lattice[x][y][z] == 1:
-                interior_count += 1"""
+                interior_count += 1
 
     try:
 
         if total_count == 0 or total_count == lattice_dimensions[0] ** 3:
             raise InfeasibleVoxelCount
 
-        """if width < 10 or height < 10 or depth < 10:
-            raise InfeasibleBoundingBox
+        lattice = fill_tiny_gaps(lattice)
+        iterative_flood_interior(lattice)
+
         """
+        if interior_count / total_count < 0.3:
+            raise InfeasibleInteriorVolume
 
-        """if interior_count / total_count < 0.3:
-            raise InfeasibleInteriorVolume"""
+        if width < 10 or height < 10 or depth < 10:
+            raise InfeasibleBoundingBox
 
-        """if floor_stability > 6:
-            raise InfeasibleLateralStability"""
+        if floor_stability > 6:
+            raise InfeasibleLateralStability
 
-        """entrance_possible = False
+        entrance_possible = False
 
         for x in range(20):
             for y in range(20):
@@ -123,19 +127,27 @@ def assess_quality(lattice):
                         for frame in door_frames_ns:
                             if np.array_equal(frame, lattice[x:x+3, y:y+2, 0:4]):
                                 entrance_possible = True
+                                lattice[x+1][y][1] = 1
+                                lattice[x+1][y][2] = 1
+                                lattice[x+1][y+1][1] = 1
+                                lattice[x+1][y+1][2] = 1
                                 break
 
                         for frame in door_frames_ew:
                             if np.array_equal(frame, lattice[x:x+2, y:y+3, 0:4]):
                                 entrance_possible = True
+                                lattice[x][y+1][1] = 1
+                                lattice[x][y+1][2] = 1
+                                lattice[x+1][y+1][1] = 1
+                                lattice[x+1][y+1][2] = 1
                                 break
 
                 # If there's a roof voxel in the bottom four voxels, raise a roof proportion error
                 for z in range(4):
                     if lattice[x][y][z] == 4:
-                        raise InfeasibleRoof"""
+                        raise InfeasibleRoof
 
-        """if not entrance_possible:
+        if not entrance_possible:
             raise InfeasibleEntrance"""
 
     except InfeasibleVoxelCount:
@@ -200,6 +212,7 @@ def footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
         for y in range(depth_bounds[0], depth_bounds[1] + 1):
             for z in range(vertical_bounds[0], vertical_bounds[1] + 1):
                 if lattice[x][y][z] > 1:
+
                     if horizontal_bounds[0] + width / 4 < x < horizontal_bounds[1] - width / 4:
                         middle_x += 1
                     else:
@@ -282,6 +295,33 @@ def stability(lattice):
         raise InfeasibleError
 
 
+def iterative_flood_interior(input_lattice):
+    visited = np.zeros(input_lattice.shape, int)
+    for i, j, k in value_range:
+        if visited[i][j][k] == 0 and input_lattice[i][j][k] == 1:
+            visited = detect_structure(input_lattice, visited, 1, (i, j, k), any_type=False)
+
+
+def fill_tiny_gaps(input_lattice):
+    visited = np.zeros(input_lattice.shape, int)
+    for i, j, k in value_range:
+
+        # Make sure this space hasn't been visited and is interior air
+        if visited[i][j][k] == 0 and input_lattice[i][j][k] == 1:
+
+            # If the first voxel above this space is solid, this isn't traversable.
+            if input_lattice[i][j][k+1] != 1:
+                input_lattice[i][j][k] = 2
+            # Otherwise drill upward till the next solid block is found and count the air voxels.
+            else:
+                for drill in range(k+1, 20):
+                    if input_lattice[i][j][drill] == 1:
+                        visited[i][j][drill] = 1
+                    else:
+                        break
+    return input_lattice
+
+
 def iterative_flood(input_lattice):
     """
     Given an input lattice perform an exhaustive flood-fill algorithm from the bottom of the
@@ -290,14 +330,9 @@ def iterative_flood(input_lattice):
     :param input_lattice: original lattice generated by CPPN-NEAT genome.
     :return: original lattice with floating voxels removed.
     """
-    if np.sum(input_lattice) == 0 or np.sum(input_lattice) == lattice_dimensions[0] ** 3:
-        raise InfeasibleError
-
-    # Create a boolean grid using the same shape as the input lattice.
     visited = np.zeros(input_lattice.shape, int)
     label = 0
 
-    # Create a set of all the voxels on the XY plane where Z = 0.
     for i in range(0, visited.shape[0]):
         for j in range(0, visited.shape[1]):
             if visited[i][j][0] == 0 and input_lattice[i][j][0] == 1:
@@ -311,25 +346,27 @@ def iterative_flood(input_lattice):
     return visited
 
 
-def detect_structure(lattice, visited, label, coordinate):
+def detect_structure(lattice, visited, label, coordinate, any_type=True):
     """
     :param lattice:
     :param visited:
     :param label:
     :param coordinate:
+    :param any_type:
     :return:
     """
     to_fill = set()
     to_fill.add(coordinate)
+    counter = 0
 
     # Keep looping whilst the set of remaining unvisited voxels is empty.
     while len(to_fill) != 0:
 
         # Pop the first element in the to-fill list.
         voxel = to_fill.pop()
-
+        counter += 1
         # If the voxel is active, mark it as true in the boolean grid and add it's neighbors
-        if lattice[voxel[0]][voxel[1]][voxel[2]] != 0:
+        if (lattice[voxel[0]][voxel[1]][voxel[2]] != 0 and any_type) or (not any_type and lattice[voxel[0]][voxel[1]][voxel[2]] == 1):
             visited[voxel[0]][voxel[1]][voxel[2]] = label
             if voxel[0] < 19 and not visited[voxel[0] + 1][voxel[1]][voxel[2]]:
                 to_fill.add((voxel[0] + 1, voxel[1], voxel[2]))
@@ -343,6 +380,10 @@ def detect_structure(lattice, visited, label, coordinate):
                 to_fill.add((voxel[0], voxel[1], voxel[2] + 1))
             if voxel[2] > 0 and not visited[voxel[0]][voxel[1]][voxel[2] - 1]:
                 to_fill.add((voxel[0], voxel[1], voxel[2] - 1))
+
+    if not any_type and counter < 125:
+        voxel_plot(lattice, "")
+        raise InfeasibleInteriorVolume
 
     # Return the boolean grid but converted to integer values to align with the rest of the pipeline
     return np.asarray(visited, dtype=int)

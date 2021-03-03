@@ -295,7 +295,8 @@ def create_seed_files(config):
     _ = create_auto_encoder(model_type=auto_encoder_3d,
                             phase=-1,
                             population=np.asarray(training_population),
-                            noisy=None)
+                            noisy=None,
+                            experiment="Seed")
     for runs in range(runs_per_phase):
         generator = NeatGenerator(
             config=config,
@@ -308,7 +309,7 @@ def create_seed_files(config):
 if __name__ == "__main__":
 
     # Name of the experiment, also used as the name of the directory used to store results.
-    experiment = "Lateral Stability"
+    experiment = "Traversable Interior"
 
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
         os.makedirs('Delenox_Experiment_Data/{}'.format(experiment))
@@ -318,7 +319,7 @@ if __name__ == "__main__":
 
     # Take the first generator from the seed folder and use that to run the experiment
     generator = pickle.load(open("Delenox_Experiment_Data/Seed/Neat_Population_0.pkl", "rb"))
-    (generator, best_fit, metrics) = generator.run_neat(0, False)
+    (generator, best_fit, metrics) = generator.run_neat(0, experiment, False)
 
     # Save the metrics to a numpy file for later extraction
     np.save('Delenox_Experiment_Data/{}/Metrics.npy'.format(experiment), metrics)
