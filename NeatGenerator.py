@@ -28,7 +28,7 @@ class NeatGenerator:
         self.archive = {}
         self.phase_best_fit = []
         self.archive_lattices = []
-        self.neat_metrics = {'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [], 'Infeasible Size': [],
+        self.neat_metrics = {'Experiment': None, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [], 'Infeasible Size': [],
                              'Connection Complexity': [], 'Archive Size': [], 'Species Count': []}
 
     def run_neat(self, phase_number, p_experiment, static=False):
@@ -37,7 +37,6 @@ class NeatGenerator:
         are completed and the top N most novel individuals are taken and inserted into a population.  At the of
         the phase we look at the distribution of individuals in the population according to numerous metrics and
         statistics regarding the evolution of the populations such as the speciation, novelty scores etc.
-
         :param p_experiment:
         :param static:
         :param phase_number:
@@ -63,6 +62,7 @@ class NeatGenerator:
         self.pool.close()
         self.pool.join()
 
+        self.neat_metrics['Experiment'] = p_experiment
         self.neat_metrics['Mean Novelty'] = self.population.reporters.reporters[0].get_fitness_mean()
         self.neat_metrics['Best Novelty'] = self.population.reporters.reporters[0].get_fitness_stat(max)
 
@@ -78,7 +78,6 @@ class NeatGenerator:
         scales the workload across the thread count given in the experiment parameters. Assigns a novelty
         value to each genome and keeps the feasible population separate, discarding and randomly regenerating
         the infeasible individuals.
-
         :param genomes: population of genomes to be evaluated.
         :param config: the NEAT-Python configuration file.
         """
@@ -92,7 +91,7 @@ class NeatGenerator:
         for genome_id, genome in genomes:
             jobs.append(self.pool.apply_async(generate_lattice, (genome, config, False, None)))
         for job, (genome_id, genome) in zip(jobs, genomes):
-            lattice, _, feasible, metrics = job.get()
+            lattice, _, feasible = job.get()
             if not feasible:
                 del self.population.population[genome_id]
                 genome.fitness = 0
@@ -150,7 +149,7 @@ class NeatGenerator:
         self.neat_metrics['Connection Complexity'].append(connection_complexity)
         self.neat_metrics['Archive Size'].append(len(self.archive))
         self.neat_metrics['Species Count'].append(len(self.population.species.species))
-        self.neat_metrics['Infeasible Size'].append(len(self.population.species.species))
+        self.neat_metrics['Infeasible Size'].append(remove)
 
         print("[Population {:d}]: Generation {:d} took {:2f} seconds.".format(self.population_id, self.current_gen,
                                                                               time.time() - start))
@@ -182,7 +181,6 @@ def novelty_search(genome_id, compressed_population, archive):
     Computes the novelty score for the given genome with respect to the current population and
     an archive of past novel individuals for this run. The score is the average euclidean distance
     to the nearest K neighbors (taken from the population and archive).
-
     :param genome_id: the ID of the genome being assessed.
     :param compressed_population: the population of latent vectors to compare to.
     :param archive: the archive of past novel individuals for this run.
@@ -199,12 +197,13 @@ def novelty_search(genome_id, compressed_population, archive):
 
 def generate_lattice(genome, config, noise_flag=True, plot=None):
     """
-
-    :param plot:
-    :param noise_flag:
-    :param genome:
-    :param config:
-    :return:
+    Generates a lattice using the given CPPN genome and NEAT configuration file.  May also generate
+    a noisy variant of the lattice (if a DAE is being used) and may plot the lattice if required.
+    :param plot: Title of the figure for the plot
+    :param noise_flag: Boolean value for adding noise.
+    :param genome: CPPN object used to generate lattices.
+    :param config: CPPN-NEAT config file specifying the parameters for the genomes.
+    :return: generated lattice, noisy variant, feasibility status and
     """
     net = neat.nn.FeedForwardNetwork.create(genome, config)
     lattice = np.zeros(lattice_dimensions)
@@ -213,7 +212,7 @@ def generate_lattice(genome, config, noise_flag=True, plot=None):
     for (x, y, z) in value_range:
         lattice[x][y][z] = np.round(
             net.activate((x / lattice_dimensions[0], y / lattice_dimensions[0], z / lattice_dimensions[0]))[0])
-    feasible, lattice, metrics = apply_constraints(lattice)
+    feasible, lattice = apply_constraints(lattice)
     if noise_flag:
         noisy = add_noise(lattice)
     if plot is not None:
@@ -222,7 +221,7 @@ def generate_lattice(genome, config, noise_flag=True, plot=None):
     lattice = to_categorical(lattice, num_classes=5)
     noisy = to_categorical(noisy, num_classes=5)
 
-    return np.asarray(lattice, dtype=bool), np.asarray(noisy, dtype=bool), feasible, metrics
+    return np.asarray(lattice, dtype=bool), np.asarray(noisy, dtype=bool), feasible
 
 
 def generate_lattices(genomes, config, noise_flag=True):
@@ -237,24 +236,22 @@ def generate_lattices(genomes, config, noise_flag=True):
     jobs = []
     lattices = []
     noisy = []
-    metrics = []
     for genome in genomes:
         jobs.append(pool.apply_async(generate_lattice, (genome, config, noise_flag)))
     for job in jobs:
-        lattice, noisy_lattice, valid, metrics = job.get()
+        lattice, noisy_lattice, valid = job.get()
         if valid:
             lattices.append(lattice)
             if noise_flag:
                 noisy.append(noisy_lattice)
     pool.close()
     pool.join()
-    return noisy, lattices, metrics
+    return noisy, lattices
 
 
 def create_population_lattices(config, noise_flag=True):
     """
     Generates a population of lattices and their noisy counterparts.
-
     :param noise_flag: boolean which determines whether a noised copy of the dataset should be created.
     :param config: CPPN-NEAT config file specifying the parameters for the genomes.
     :return lattices, noisy: the population of generated lattices and their noisy counterparts
@@ -263,7 +260,7 @@ def create_population_lattices(config, noise_flag=True):
     noisy = []
     while len(lattices) < best_fit_count * runs_per_phase:
         population = create_population(config, round((best_fit_count * runs_per_phase - len(lattices)) * 2))
-        noisy_batch, lattice_batch, _ = generate_lattices(population.population.values(), config, noise_flag)
+        noisy_batch, lattice_batch = generate_lattices(population.population.values(), config, noise_flag)
         lattices += lattice_batch
         if noise_flag:
             noisy += noisy_batch
@@ -274,7 +271,6 @@ def create_population_lattices(config, noise_flag=True):
 def create_population(config, pop_size=population_size):
     """
     Generates a population of CPPN genomes according to the given CPPN-NEAT config file and population size.
-
     :param config: CPPN-NEAT config file specifying the parameters for the genomes.
     :param pop_size: Number of genomes to create.
     :return population: Population objecting containing a dictionary in the form {genome_id: genome_object}.
@@ -286,9 +282,11 @@ def create_population(config, pop_size=population_size):
 
 def create_seed_files(config):
     """
-
-    :param config:
-    :return:
+    Initializes the NEAT populations which act as the seed for our experiments, and trains an auto-encoder
+    on randomly initialized CPPNs to be used the first phase of the experiments.  This way all the experiments
+    start with the same populations and the same auto-encoder eliminating potential randomness interfering with
+    results.
+    :param config: CPPN-NEAT config file specifying the parameters for the genomes.
     """
     training_population, _ = create_population_lattices(config, False)
     np.save("./Delenox_Experiment_Data/Seed/Initial_Training_Set.npy", np.asarray(training_population))
@@ -308,14 +306,26 @@ def create_seed_files(config):
 
 if __name__ == "__main__":
 
-    # Name of the experiment, also used as the name of the directory used to store results.
-    experiment = "Traversable Interior"
+    experiments = [
+        "No Constraints",
+        "Entrance Required",
+        "Lateral Stability",
+        "Minimum Bounding Box",
+        "Traversable Interior",
+        "Minimum Interior Ratio",
+        "MBB + LS",
+        "MBB + TI",
+        "MIR + TI",
+        "All Constraints"
+    ]
 
+    # Name of the experiment, also used as the name of the directory used to store results.
+    experiment = experiments[1]
+
+    # If this experiment hasn't been run yet, create the required directories.
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
         os.makedirs('Delenox_Experiment_Data/{}'.format(experiment))
-    else:
-        print("Experiment output directory already exists, please choose a new one to avoid overwriting data.")
-        exit(1)
+        os.makedirs('Delenox_Experiment_Data/{}/Phase0'.format(experiment))
 
     # Take the first generator from the seed folder and use that to run the experiment
     generator = pickle.load(open("Delenox_Experiment_Data/Seed/Neat_Population_0.pkl", "rb"))
@@ -328,9 +338,9 @@ if __name__ == "__main__":
     with open("Delenox_Experiment_Data/{}/Neat_Population.pkl".format(experiment), "wb+") as f:
         pickle.dump(generator, f)
 
-    plot_statistics(
+    """plot_statistics(
         values=np.mean(metrics['Infeasible Size'], axis=-1),
         confidence=np.std(metrics['Infeasible Size'], axis=-1),
         key='Infeasible Size',
         phase=0
-    )
+    )"""

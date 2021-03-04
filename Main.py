@@ -25,11 +25,11 @@ if __name__ == '__main__':
         """
         if not os.path.exists('Delenox_Experiment_Data/{}/Phase{:d}'.format(experiment, phase)):
             os.makedirs('Delenox_Experiment_Data/{}/Phase{:d}'.format(experiment, phase))
-            neat_metrics = {'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [], 'Connection Complexity': [],
+            neat_metrics = {'Experiment': experiment, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [], 'Connection Complexity': [],
                             'Archive Size': [], 'Species Count': [], 'Infeasible Size': []}
             training_population = []
         else:
-            neat_metrics = np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npy".format(experiment, phase), allow_pickle=True)
+            neat_metrics = np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npy".format(experiment, phase), allow_pickle=True).item()
             training_population = list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npy".format(experiment, phase), allow_pickle=True))
 
         """
@@ -46,11 +46,14 @@ if __name__ == '__main__':
             neat_generators = [pickle.load(open("Delenox_Experiment_Data/{}/Phase{:d}/Neat_Population_{:d}.pkl".format(experiment, phase-1, runs),
                                                 "rb")) for runs in range(runs_per_phase)]
 
+        phase_resumed = False
+
         for number in range(len(neat_generators)):
 
             if os.path.exists('Delenox_Experiment_Data/{}/Phase{:d}/Neat_Population_{:d}.pkl'.format(experiment, phase, number)):
                 continue
 
+            phase_resumed = True
             generator, best_fit, metrics = neat_generators[number].run_neat(phase, experiment, static)
             training_population += list(best_fit)
 
@@ -73,7 +76,7 @@ if __name__ == '__main__':
         2) Create a new auto-encoder with the data generated from this iteration's exploration phase
         3) Visualize metrics of the newly generated auto-encoder and save figures to disk
         """
-        if not static:
+        if not static and phase_resumed:
             training_history = []
             for rewind in range(phase):
                 training_history += list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npy".format(experiment, rewind)))

@@ -192,7 +192,8 @@ def novel_diversity(populations):
     _, encoder, decoder = create_auto_encoder(auto_encoder_3d,
                                               noisy=None,
                                               phase=0,
-                                              save=False)
+                                              save=False,
+                                              experiment=None)
     pool = Pool(11)
 
     for population in range(len(populations)):
@@ -281,7 +282,7 @@ def plot_metric(metric_list, labels, colors, keys):
 
         for counter in range(len(metric_list)):
 
-            metric = metric_list[counter].item().get(key)
+            metric = metric_list[counter][key]
             generations = range(len(metric))
 
             # Plotting the mean of given metric over generations
@@ -359,7 +360,7 @@ if __name__ == '__main__':
 
     subset_size = 1000
 
-    labels = [
+    """labels = [
         "Static DAE",
         "Random AE",
         "Latest Set DAE",
@@ -411,14 +412,30 @@ if __name__ == '__main__':
         np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True),
         np.load("./Retrain AE (Full Archive History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
     ]
-
-    lattices = np.load("Ahousev5_Buildings_Varied.npy")
+    """
+    """lattices = np.load("Ahousev5_Buildings_Varied.npy")
     for lattice in lattices:
         lattice = apply_constraints(lattice)[1]
         voxel_plot(lattice, "")
-        example = to_categorical(lattice, num_classes=5)
+        example = to_categorical(lattice, num_classes=5)"""
 
     # novel_diversity(training_sets)
     # pca_buildings(training_sets, range(7))
     # accuracy_plot(training_sets, range(7), directories)
     # plot_metric(metrics, labels, colors, keys)
+
+    constraint_metrics = [
+        np.load("./Delenox_Experiment_Data/No Constraints/Metrics.npy", allow_pickle=True).item(),
+    ]
+
+    constraint_labels = [
+        "No Constraints"
+    ]
+
+    constraint_colors = [
+        "Blue"
+    ]
+
+    constraint_keys = ["Infeasible Size"]
+
+    plot_metric(constraint_metrics, constraint_labels, constraint_colors, constraint_keys)
