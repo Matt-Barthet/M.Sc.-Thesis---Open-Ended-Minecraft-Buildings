@@ -68,17 +68,10 @@ def assess_quality(lattice):
     :return list of metrics:
     """
 
-
-    """horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
-    width = (horizontal_bounds[1] - horizontal_bounds[0])
-    height = vertical_bounds[1]
-    depth = (depth_bounds[1] - depth_bounds[0])
-
-    # (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
-    lattice_stability, floor_stability = stability(lattice)"""
+    """
+    (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)"""
 
     """
-    interior_count = 0
     roof_count = 0
     walls = 0
     floor_count = 0
@@ -94,25 +87,35 @@ def assess_quality(lattice):
     """
 
     try:
+
         total_count = np.sum(lattice)
-        if total_count == 0:
+        if total_count == 0 or total_count == lattice_dimensions[0] ** 3:
             raise InfeasibleVoxelCount
 
-        lattice, entrance = place_entrance(lattice)
-        if not entrance:
-            raise InfeasibleEntrance
-
-        """lattice = fill_tiny_gaps(lattice)
-        iterative_flood_interior(lattice)
-
-        if interior_count / total_count < 0.3:
-            raise InfeasibleInteriorVolume
-
+        """horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
+        width = (horizontal_bounds[1] - horizontal_bounds[0])
+        height = vertical_bounds[1]
+        depth = (depth_bounds[1] - depth_bounds[0])
         if width < 10 or height < 10 or depth < 10:
             raise InfeasibleBoundingBox
 
+        interior_count = 0
+        for (x, y, z) in value_range:
+            if lattice[x][y][z] == 1:
+                interior_count += 1
+        if interior_count / total_count < 0.3:
+            raise InfeasibleInteriorVolume
+
+        lattice = fill_tiny_gaps(lattice)
+        iterative_flood_interior(lattice)
+
+        lattice_stability, floor_stability = stability(lattice)
         if floor_stability > 6:
-            raise InfeasibleLateralStability"""
+            raise InfeasibleLateralStability
+
+        lattice, entrance = place_entrance(lattice)
+        if not entrance:
+            raise InfeasibleEntrance"""
 
     except InfeasibleVoxelCount:
         raise InfeasibleError

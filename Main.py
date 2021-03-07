@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from Autoencoder import auto_encoder_3d, create_auto_encoder
+from Autoencoder import auto_encoder_3d, create_auto_encoder, add_noise, add_noise_parallel
 from Delenox_Config import *
 from NeatGenerator import NeatGenerator
 
@@ -7,8 +7,9 @@ if __name__ == '__main__':
 
     # Flag to test a static configuration of DeLeNoX, where no transformation phases take place
     static = False
+    noisy = True
 
-    experiment = "Random AE"
+    experiment = "Retrained DAE - Full History"
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
         os.makedirs('Delenox_Experiment_Data/{}'.format(experiment))
     else:
@@ -29,8 +30,14 @@ if __name__ == '__main__':
                             'Archive Size': [], 'Species Count': [], 'Infeasible Size': []}
             training_population = []
         else:
-            neat_metrics = np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npy".format(experiment, phase), allow_pickle=True).item()
-            training_population = list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npy".format(experiment, phase), allow_pickle=True))
+            try:
+                neat_metrics = np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npy".format(experiment, phase), allow_pickle=True).item()
+                training_population = list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npy".format(experiment, phase), allow_pickle=True))
+            except:
+                neat_metrics = {'Experiment': experiment, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [],
+                                'Connection Complexity': [],
+                                'Archive Size': [], 'Species Count': [], 'Infeasible Size': []}
+                training_population = []
 
         """
         Exploration Phase:
@@ -46,15 +53,12 @@ if __name__ == '__main__':
             neat_generators = [pickle.load(open("Delenox_Experiment_Data/{}/Phase{:d}/Neat_Population_{:d}.pkl".format(experiment, phase-1, runs),
                                                 "rb")) for runs in range(runs_per_phase)]
 
-        phase_resumed = False
-
         for number in range(len(neat_generators)):
 
             if os.path.exists('Delenox_Experiment_Data/{}/Phase{:d}/Neat_Population_{:d}.pkl'.format(experiment, phase, number)):
                 continue
 
-            phase_resumed = True
-            generator, best_fit, metrics = neat_generators[number].run_neat(phase, experiment, static)
+            generator, best_fit, metrics = neat_generators[number].run_neat(phase, experiment, static, noise=noisy)
             training_population += list(best_fit)
 
             # Save the neat populations to pickle files in the current phase folder
@@ -65,7 +69,12 @@ if __name__ == '__main__':
 
             # Update the metrics dictionary with this phase' results
             for key in metrics.keys():
-                neat_metrics[key].append(metrics[key])
+                try:
+                    neat_metrics[key].append(metrics[key])
+                except KeyError:
+                    neat_metrics.update({key: metrics[key]})
+                except AttributeError:
+                    pass
 
             # Save the latest metrics to a numpy file for later extraction
             np.save("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npy".format(experiment, phase), neat_metrics)
@@ -76,15 +85,15 @@ if __name__ == '__main__':
         2) Create a new auto-encoder with the data generated from this iteration's exploration phase
         3) Visualize metrics of the newly generated auto-encoder and save figures to disk
         """
-        if not static and phase_resumed:
+        if not static and not os.path.exists('Delenox_Experiment_Data/{}/Phase{:d}/encoder.json'.format(experiment, phase)):
             training_history = []
-            for rewind in range(phase):
+            for rewind in range(phase + 1):
                 training_history += list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npy".format(experiment, rewind)))
             ae, encoder, decoder = create_auto_encoder(model_type=auto_encoder_3d,
                                                        phase=phase,
                                                        experiment=experiment,
-                                                       population=None,
-                                                       noisy=None)
+                                                       population=np.asarray(training_history),
+                                                       noisy=add_noise_parallel(np.asarray(training_history)))
 
         # Clear the plotting library's cache to make sure we aren't wasting memory
         plt.close('all')

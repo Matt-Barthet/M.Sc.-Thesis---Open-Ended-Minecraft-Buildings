@@ -15,7 +15,7 @@ from mpl_toolkits.mplot3d import axes3d, Axes3D #<-- Note the capitalization!
 from Autoencoder import load_model, convert_to_integer, test_accuracy, create_auto_encoder, auto_encoder_3d
 from Constraints import apply_constraints
 from Delenox_Config import value_range
-from Visualization import voxel_plot
+from Visualization import voxel_plot, plot_statistics
 
 plt.style.use('seaborn')
 
@@ -156,7 +156,7 @@ def accuracy_plot(populations, phases, models):
     plt.show()
 
 
-def lattice_diversity(populations):
+def lattice_diversity(populations, labels):
     diversities = []
     df = pd.DataFrame({'Phase': [], 'Entropy': [], 'Experiment': []})
 
@@ -164,17 +164,24 @@ def lattice_diversity(populations):
         for phase in populations[population]:
             print("Starting Phase")
 
-            for lattice in phase:
+            lattices = [to_categorical(lattice) for lattice in phase.values()]
+
+            for lattice in lattices:
                 diversity = 0
 
-                for other in phase:
-                    for (x, y, z) in value_range:
-                        diversity += entropy(lattice[x][y][z], other[x][y][z])
+                flattened_lattice = lattice.ravel()
+                flattened_lattice = softmax(flattened_lattice)
 
-                diversities.append(diversity / 8000)
+                for other in lattices:
+                    flattened_other = other.ravel()
+                    flattened_other = softmax(flattened_other)
+                    diversity = entropy(flattened_lattice, flattened_other)
 
-            tmp = pd.DataFrame({'Phase': [phase + 1],
-                                'Entropy': [np.round(np.mean(diversities), 2)],
+                diversities.append(diversity)
+
+            print(np.mean(diversities))
+            tmp = pd.DataFrame({'Phase': [1],
+                                'Entropy': [np.mean(diversities)],
                                 'Experiment': [labels[population]]})
 
             df = pd.concat([df, tmp], axis=0)
@@ -426,16 +433,76 @@ if __name__ == '__main__':
 
     constraint_metrics = [
         np.load("./Delenox_Experiment_Data/No Constraints/Metrics.npy", allow_pickle=True).item(),
+        np.load("./Delenox_Experiment_Data/Entrance Required/Metrics.npy", allow_pickle=True).item(),
+        np.load("./Delenox_Experiment_Data/Lateral Stability/Metrics.npy", allow_pickle=True).item(),
+        np.load("./Delenox_Experiment_Data/Minimum Bounding Box/Metrics.npy", allow_pickle=True).item(),
+        np.load("./Delenox_Experiment_Data/Traversable Interior/Metrics.npy", allow_pickle=True).item(),
+        np.load("./Delenox_Experiment_Data/Minimum Interior Ratio/Metrics.npy", allow_pickle=True).item(),
+        np.load("./Delenox_Experiment_Data/MBB + LS/Metrics.npy", allow_pickle=True).item(),
+        np.load("./Delenox_Experiment_Data/MBB + TI/Metrics.npy", allow_pickle=True).item(),
+        np.load("./Delenox_Experiment_Data/MIR + TI/Metrics.npy", allow_pickle=True).item(),
+        np.load("./Delenox_Experiment_Data/All Constraints/Metrics.npy", allow_pickle=True).item(),
+    ]
+
+    constraint_pops = [
+        [np.load("./Delenox_Experiment_Data/No Constraints/Phase0/Population_0.npy", allow_pickle=True).item()],
+        [np.load("./Delenox_Experiment_Data/Entrance Required/Phase0/Population_0.npy", allow_pickle=True).item()],
+        [np.load("./Delenox_Experiment_Data/Lateral Stability/Phase0/Population_0.npy", allow_pickle=True).item()],
+        [np.load("./Delenox_Experiment_Data/Minimum Bounding Box/Phase0/Population_0.npy", allow_pickle=True).item()],
+        [np.load("./Delenox_Experiment_Data/Traversable Interior/Phase0/Population_0.npy", allow_pickle=True).item()],
+        [np.load("./Delenox_Experiment_Data/Minimum Interior Ratio/Phase0/Population_0.npy", allow_pickle=True).item()],
+        [np.load("./Delenox_Experiment_Data/MBB + LS/Phase0/Population_0.npy", allow_pickle=True).item()],
+        [np.load("./Delenox_Experiment_Data/MBB + TI/Phase0/Population_0.npy", allow_pickle=True).item()],
+        [np.load("./Delenox_Experiment_Data/MIR + TI/Phase0/Population_0.npy", allow_pickle=True).item()],
+        [np.load("./Delenox_Experiment_Data/All Constraints/Phase0/Population_0.npy", allow_pickle=True).item()],
     ]
 
     constraint_labels = [
-        "No Constraints"
+        "No Constraints",
+        "Entrance Required",
+        "Lateral Stability",
+        "Minimum Bounding Box",
+        "Traversable Interior",
+        "Minimum Interior Ratio",
+        "Minimum Bounding Box + Lateral Stability",
+        "Minimum Bounding Box + Traversable Interior",
+        "Minimum Interior Ratio + Traversable Interior",
+        "All Constraints"
     ]
 
     constraint_colors = [
-        "Blue"
+        "Blue",
+        "Red",
+        "Green",
+        "Black",
+        "Yellow",
+        "Orange",
+        "Brown",
+        "Purple",
+        "Cyan",
+        "Gray"
     ]
 
     constraint_keys = ["Infeasible Size"]
 
-    plot_metric(constraint_metrics, constraint_labels, constraint_colors, constraint_keys)
+    lattice_diversity(constraint_pops, constraint_labels)
+
+    """plt.figure()
+    plt.title("Infeasible Size vs Generation")
+    plt.xlabel("Generation")
+    plt.ylabel("Infeasible Size")
+
+    for i in range(10):
+        x_train = np.asarray(range(100)).reshape(-1, 1)
+        y_train = np.asarray(constraint_metrics[i]["Infeasible Size"]).reshape(-1, 1)
+        linear_regression = LinearRegression()
+        linear_regression.fit(x_train, y_train)
+        line = linear_regression.predict(x_train)
+        plt.plot(x_train, line, label=constraint_labels[i], color=constraint_colors[i])
+
+    plt.grid()
+    legend = plt.legend(frameon=True, bbox_to_anchor=(1.005, 0.65), loc="upper left")
+    frame = legend.get_frame()
+    frame.set_facecolor('white')
+    frame.set_edgecolor('black')
+    plt.show()"""

@@ -25,18 +25,20 @@ class NeatGenerator:
         self.encoder = None
         self.decoder = None
         self.pool = None
+        self.noise = False
         self.archive = {}
         self.phase_best_fit = []
         self.archive_lattices = []
         self.neat_metrics = {'Experiment': None, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [], 'Infeasible Size': [],
                              'Connection Complexity': [], 'Archive Size': [], 'Species Count': []}
 
-    def run_neat(self, phase_number, p_experiment, static=False):
+    def run_neat(self, phase_number, p_experiment, static=False, noise=False):
         """
         Executes one "exploration" phase of the Delenox pipeline.  A set number of independent evolutionary runs
         are completed and the top N most novel individuals are taken and inserted into a population.  At the of
         the phase we look at the distribution of individuals in the population according to numerous metrics and
         statistics regarding the evolution of the populations such as the speciation, novelty scores etc.
+        :param noise:
         :param p_experiment:
         :param static:
         :param phase_number:
@@ -48,14 +50,19 @@ class NeatGenerator:
         self.current_gen = 0
         self.current_phase = phase_number
         self.experiment = p_experiment
+        self.noise = noise
         if phase_number > 0 and static is False:
             self.encoder = load_model(
                 "./Delenox_Experiment_Data/{}/Phase{:d}/encoder".format(p_experiment, phase_number - 1))
             self.decoder = load_model(
                 "./Delenox_Experiment_Data/{}/Phase{:d}/decoder".format(p_experiment, phase_number - 1))
         else:
-            self.encoder = load_model("./Delenox_Experiment_Data/Seed/encoder")
-            self.decoder = load_model("./Delenox_Experiment_Data/Seed/decoder")
+            if not noise:
+                self.encoder = load_model("./Delenox_Experiment_Data/Seed/encoder")
+                self.decoder = load_model("./Delenox_Experiment_Data/Seed/decoder")
+            else:
+                self.encoder = load_model("./Delenox_Experiment_Data/Seed/encoder_noisy")
+                self.decoder = load_model("./Delenox_Experiment_Data/Seed/decoder_noisy")
 
         self.pool = Pool(thread_count)
         self.population.run(self.run_one_generation, generations_per_run)
@@ -100,7 +107,10 @@ class NeatGenerator:
                 lattices.update({genome_id: lattice})
 
         for genome_id, lattice in lattices.items():
-            compressed_population.update({genome_id: self.encoder.predict(lattice[None])[0]})
+            to_compress = lattice
+            if self.noise:
+                to_compress = add_noise(lattice)
+            compressed_population.update({genome_id: self.encoder.predict(to_compress[None])[0]})
 
         jobs.clear()
         for genome_id in compressed_population.keys():
@@ -306,6 +316,13 @@ def create_seed_files(config):
 
 if __name__ == "__main__":
 
+    seed = np.load("Delenox_Experiment_Data/Seed/Initial_Training_Set.npy")
+    _ = create_auto_encoder(model_type=auto_encoder_3d,
+                            phase=-1,
+                            population=seed,
+                            noisy=add_noise(seed),
+                            experiment="Seed")
+    exit(0)
     experiments = [
         "No Constraints",
         "Entrance Required",
@@ -320,7 +337,7 @@ if __name__ == "__main__":
     ]
 
     # Name of the experiment, also used as the name of the directory used to store results.
-    experiment = experiments[1]
+    experiment = experiments[9]
 
     # If this experiment hasn't been run yet, create the required directories.
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):

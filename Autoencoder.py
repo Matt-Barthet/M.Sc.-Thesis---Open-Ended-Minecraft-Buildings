@@ -40,22 +40,28 @@ def create_auto_encoder(model_type, phase, experiment, population=None, noisy=No
     # Compiling the AE and fitting it using the noisy population as input and the original population as the target
     ae.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['categorical_accuracy', 'binary_accuracy'])
 
-    """if noisy is None:
-        noisy = add_noise_parallel(population)"""
+    encoder_name = "encoder"
+    decoder_name = "decoder"
+
+    if noisy is None:
+        noisy = population
+    else:
+        encoder_name += "_noisy"
+        decoder_name += "_noisy"
 
     if population is not None:
         # If the function is given a population of lattices, create a set of noisy variants and partition into train-test.
         # training_noisy, test_noisy, training, test = train_test_split(population, population, test_size=0.2, random_state=29)
-        training, test = train_test_split(population, test_size=0.2, random_state=29)
+        train_noisy, test_noisy, training, test = train_test_split(noisy, population, test_size=0.2, random_state=29)
 
-        history = ae.fit(x=training, y=training, epochs=no_epochs,
-                         batch_size=batch_size, validation_data=(test, test), shuffle=True)
+        history = ae.fit(x=train_noisy, y=training, epochs=no_epochs,
+                         batch_size=batch_size, validation_data=(test_noisy, test), shuffle=True)
         visualize_training(history, phase, experiment)
 
     if save:
         if phase == -1:
-            save_model(encoder_model, "./Delenox_Experiment_Data/Seed/encoder")
-            save_model(decoder_model, "./Delenox_Experiment_Data/Seed/decoder")
+            save_model(encoder_model, "./Delenox_Experiment_Data/Seed/{}".format(encoder_name))
+            save_model(decoder_model, "./Delenox_Experiment_Data/Seed/{}".format(decoder_name))
         else:
             save_model(encoder_model, "./Delenox_Experiment_Data/{}/Phase{:d}/encoder".format(experiment, phase))
             save_model(decoder_model, "./Delenox_Experiment_Data/{}/Phase{:d}/decoder".format(experiment, phase))
