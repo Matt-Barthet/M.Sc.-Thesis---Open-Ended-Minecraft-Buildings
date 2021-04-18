@@ -87,7 +87,6 @@ def assess_quality(lattice):
     """
 
     try:
-
         total_count = np.sum(lattice)
         if total_count == 0 or total_count == lattice_dimensions[0] ** 3:
             raise InfeasibleVoxelCount
@@ -298,9 +297,7 @@ def iterative_flood_interior(input_lattice):
             visited, space_found_new = detect_structure(input_lattice, visited, 1, (i, j, k), any_type=False)
             if not space_found:
                 space_found = space_found_new
-
     if not space_found:
-        # voxel_plot(input_lattice, "No Large Interior Found!")
         raise InfeasibleInteriorVolume
 
 

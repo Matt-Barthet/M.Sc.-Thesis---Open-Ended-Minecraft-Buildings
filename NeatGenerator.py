@@ -32,31 +32,39 @@ class NeatGenerator:
         self.neat_metrics = {'Experiment': None, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [], 'Infeasible Size': [],
                              'Connection Complexity': [], 'Archive Size': [], 'Species Count': []}
 
-    def run_neat(self, phase_number, p_experiment, static=False, noise=False):
+    def run_neat(self, phase_number, p_experiment, static=False, noise=False, persistent_archive=True):
         """
         Executes one "exploration" phase of the Delenox pipeline.  A set number of independent evolutionary runs
         are completed and the top N most novel individuals are taken and inserted into a population.  At the of
         the phase we look at the distribution of individuals in the population according to numerous metrics and
         statistics regarding the evolution of the populations such as the speciation, novelty scores etc.
+        :param persistent_archive:
         :param noise:
         :param p_experiment:
         :param static:
         :param phase_number:
         :return: the generated population of lattices and statistics variables from the runs of the phase.
         """
-        # self.archive.clear()
-        # self.archive_lattices.clear()
+        # Check to see if we should clear the novelty archive before starting the next phase.
+        if not persistent_archive:
+            self.archive.clear()
+            self.archive_lattices.clear()
+
+        # Re-initialize phase variables accordingly
         self.phase_best_fit.clear()
         self.current_gen = 0
         self.current_phase = phase_number
         self.experiment = p_experiment
         self.noise = noise
+
+        # Load last phase's autoencoder, or the seed autoencoder if this is the first phase.
         if phase_number > 0 and static is False:
             self.encoder = load_model(
                 "./Delenox_Experiment_Data/{}/Phase{:d}/encoder".format(p_experiment, phase_number - 1))
             self.decoder = load_model(
                 "./Delenox_Experiment_Data/{}/Phase{:d}/decoder".format(p_experiment, phase_number - 1))
         else:
+            # If the experiment uses a de-noising autoencoder, load the appropriate model.
             if not noise:
                 self.encoder = load_model("./Delenox_Experiment_Data/Seed/encoder")
                 self.decoder = load_model("./Delenox_Experiment_Data/Seed/decoder")
@@ -64,20 +72,24 @@ class NeatGenerator:
                 self.encoder = load_model("./Delenox_Experiment_Data/Seed/encoder_noisy")
                 self.decoder = load_model("./Delenox_Experiment_Data/Seed/decoder_noisy")
 
+        # Initialize the processes used for the NEAT run and execute the phase.
         self.pool = Pool(thread_count)
         self.population.run(self.run_one_generation, generations_per_run)
         self.pool.close()
         self.pool.join()
 
+        # Update the NEAT metrics with the end-of-phase statistics.
         self.neat_metrics['Experiment'] = p_experiment
         self.neat_metrics['Mean Novelty'] = self.population.reporters.reporters[0].get_fitness_mean()
         self.neat_metrics['Best Novelty'] = self.population.reporters.reporters[0].get_fitness_stat(max)
 
+        # Clearing the pool variable and auto-encoder as these cannot be saved to a pickle file.
         self.pool = None
         self.encoder = None
         self.decoder = None
 
-        return self, self.phase_best_fit, self.neat_metrics
+        # return self, self.phase_best_fit, self.neat_metrics
+        return self, self.archive_lattices, self.neat_metrics
 
     def run_one_generation(self, genomes, config):
         """
@@ -161,8 +173,7 @@ class NeatGenerator:
         self.neat_metrics['Species Count'].append(len(self.population.species.species))
         self.neat_metrics['Infeasible Size'].append(remove)
 
-        print("[Population {:d}]: Generation {:d} took {:2f} seconds.".format(self.population_id, self.current_gen,
-                                                                              time.time() - start))
+        print("[Population {:d}]: Generation {:d} took {:2f} seconds.".format(self.population_id, self.current_gen, time.time() - start))
         print("Average Hidden Layer Size: {:2.2f}".format(node_complexity))
         print("Average Connection Count: {:2.2f}".format(connection_complexity))
         print("Size of the Novelty Archive: {:d}".format(len(self.archive)))

@@ -9,7 +9,7 @@ if __name__ == '__main__':
     static = False
     noisy = True
 
-    experiment = "Retrained DAE - Full History"
+    experiment = "Retrained AE - Novelty Archive"
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
         os.makedirs('Delenox_Experiment_Data/{}'.format(experiment))
     else:
@@ -33,7 +33,7 @@ if __name__ == '__main__':
             try:
                 neat_metrics = np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npy".format(experiment, phase), allow_pickle=True).item()
                 training_population = list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npy".format(experiment, phase), allow_pickle=True))
-            except:
+            except FileNotFoundError:
                 neat_metrics = {'Experiment': experiment, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [],
                                 'Connection Complexity': [],
                                 'Archive Size': [], 'Species Count': [], 'Infeasible Size': []}
@@ -92,8 +92,8 @@ if __name__ == '__main__':
             ae, encoder, decoder = create_auto_encoder(model_type=auto_encoder_3d,
                                                        phase=phase,
                                                        experiment=experiment,
-                                                       population=np.asarray(training_history),
-                                                       noisy=add_noise_parallel(np.asarray(training_history)))
+                                                       population=np.asarray(training_population),
+                                                       noisy=add_noise_parallel(np.asarray(training_population)))
 
         # Clear the plotting library's cache to make sure we aren't wasting memory
         plt.close('all')

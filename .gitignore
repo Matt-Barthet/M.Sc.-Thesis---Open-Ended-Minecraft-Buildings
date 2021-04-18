@@ -110,6 +110,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Output Files
+Delenox_Experiment_Data/
+
 # Spyder project settings
 .spyderproject
 .spyproject
