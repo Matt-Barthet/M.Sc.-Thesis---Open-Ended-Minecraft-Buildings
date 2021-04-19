@@ -10,7 +10,7 @@ from scipy.stats import entropy
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from tensorflow.python.keras.utils.np_utils import to_categorical
-from mpl_toolkits.mplot3d import axes3d, Axes3D #<-- Note the capitalization!
+from mpl_toolkits.mplot3d import axes3d, Axes3D  #<-- Note the capitalization!
 
 from Autoencoder import load_model, convert_to_integer, test_accuracy, create_auto_encoder, auto_encoder_3d
 from Constraints import apply_constraints
@@ -121,17 +121,17 @@ def pca_buildings(populations, phases):
     plt.show()
 
 
-def accuracy_plot(populations, phases, models):
+def accuracy_plot(populations, models):
     df = pd.DataFrame({'Phase': [], 'Reconstruction Error': [], 'Experiment': []})
 
     for population in range(len(models)):
 
-        for phase in phases:
+        for phase in range(len(populations)):
             print("Starting new phase")
 
             if population != 0:
-                encoder = load_model("{}Phase{}/encoder".format(models[population], 6))
-                decoder = load_model("{}Phase{}/decoder".format(models[population], 6))
+                encoder = load_model("{}Phase{}/encoder".format(models[population], 9))
+                decoder = load_model("{}Phase{}/decoder".format(models[population], 9))
             else:
                 encoder = load_model("{}Phase{}/encoder".format(models[population], 0))
                 decoder = load_model("{}Phase{}/decoder".format(models[population], 0))
@@ -289,12 +289,19 @@ def plot_metric(metric_list, labels, colors, keys):
 
         for counter in range(len(metric_list)):
 
-            metric = metric_list[counter][key]
+            metric = np.asarray(metric_list[counter].item()[key])
+
+            if metric.shape == (10, 1000):
+                metric = np.stack(metric, axis=1)
+
             generations = range(len(metric))
+
+            mean = np.mean(metric[generations], axis=1)
+            ci = np.std(metric[generations], axis=1) / np.sqrt(10) * 1.96
 
             # Plotting the mean of given metric over generations
             plt.errorbar(x=generations,
-                         y=np.mean(metric[generations], axis=-1),
+                         y=mean,
                          fmt='-',
                          label=labels[counter],
                          alpha=1,
@@ -302,8 +309,8 @@ def plot_metric(metric_list, labels, colors, keys):
 
             # Filling the deviation from the mean in a translucent color.
             plt.fill_between(x=generations,
-                             y1=np.mean(metric[generations], axis=-1) + np.std(metric, axis=-1)[generations],
-                             y2=np.mean(metric[generations], axis=-1) - np.std(metric, axis=1)[generations],
+                             y1=mean + ci,
+                             y2=mean - ci,
                              color=colors[counter],
                              alpha=0.25)
 
@@ -366,143 +373,17 @@ if __name__ == '__main__':
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
     subset_size = 1000
+    labels = ["Static AE", "Random AE", "Full History AE", "Full History DAE", "Latest Set AE", "Novelty Archive AE"]
+    colors = ['black', 'red', 'blue', 'green', 'brown', 'yellow']
+    keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
 
-    """labels = [
-        "Static DAE",
-        "Random AE",
-        "Latest Set DAE",
-        "Full History DAE",
-        "Full History AE",
-        "Novelty Archive AE"
-    ]
-
-    colors = [
-        'black',
-        'red',
-        'blue',
-        'green',
-        'brown',
-        'yellow'
-    ]
-
-    keys = [
-        "Node Complexity",
-        "Connection Complexity",
-        "Archive Size",
-        "Best Novelty",
-        "Mean Novelty"
-    ]
-
-    directories = [
-        './Static Denoising AE - Clearing Archive/',
-        './Random AE - Clearing Archive/',
-        './Retrain Denoising AE (Latest Batch) - Clearing Archive/',
-        './Retrain Denoising AE (Full History) - Clearing Archive/',
-        './Retrain Vanilla AE (Full History) - Clearing Archive/',
-        './Retrain AE (Full Archive History) - Clearing Archive/'
-    ]
-
-    training_sets = [
-        [np.load("./Static Denoising AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)],
-        [np.load("./Random AE - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)],
-        [np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)],
-        fix_bugged_population([np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i)) for i in range(7)]),
-        [np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)],
-        [np.load("./Retrain AE (Full Archive History) - Clearing Archive/Phase{}/Training_Set.npy".format(i))[-subset_size:] for i in range(7)]
-    ]
-
-    metrics = [
-        np.load("./Static Denoising AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True),
-        np.load("./Random AE - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True),
-        np.load("./Retrain Denoising AE (Latest Batch) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True),
-        np.load("./Retrain Denoising AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True),
-        np.load("./Retrain Vanilla AE (Full History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True),
-        np.load("./Retrain AE (Full Archive History) - Clearing Archive/Phase{}/Metrics.npy".format(6), allow_pickle=True)
-    ]
-    """
-    """lattices = np.load("Ahousev5_Buildings_Varied.npy")
-    for lattice in lattices:
-        lattice = apply_constraints(lattice)[1]
-        voxel_plot(lattice, "")
-        example = to_categorical(lattice, num_classes=5)"""
+    # Load the NEAT metrics and generated content from disk
+    metrics = [np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npy".format(directory, 9), allow_pickle=True) for directory in labels]
+    training_set = [[np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Training_Set.npy".format(directory, i), allow_pickle=True) for i in range(10)] for directory in labels]
 
     # novel_diversity(training_sets)
     # pca_buildings(training_sets, range(7))
-    # accuracy_plot(training_sets, range(7), directories)
+    accuracy_plot(training_set, labels)
     # plot_metric(metrics, labels, colors, keys)
 
-    constraint_metrics = [
-        np.load("./Delenox_Experiment_Data/No Constraints/Metrics.npy", allow_pickle=True).item(),
-        np.load("./Delenox_Experiment_Data/Entrance Required/Metrics.npy", allow_pickle=True).item(),
-        np.load("./Delenox_Experiment_Data/Lateral Stability/Metrics.npy", allow_pickle=True).item(),
-        np.load("./Delenox_Experiment_Data/Minimum Bounding Box/Metrics.npy", allow_pickle=True).item(),
-        np.load("./Delenox_Experiment_Data/Traversable Interior/Metrics.npy", allow_pickle=True).item(),
-        np.load("./Delenox_Experiment_Data/Minimum Interior Ratio/Metrics.npy", allow_pickle=True).item(),
-        np.load("./Delenox_Experiment_Data/MBB + LS/Metrics.npy", allow_pickle=True).item(),
-        np.load("./Delenox_Experiment_Data/MBB + TI/Metrics.npy", allow_pickle=True).item(),
-        np.load("./Delenox_Experiment_Data/MIR + TI/Metrics.npy", allow_pickle=True).item(),
-        np.load("./Delenox_Experiment_Data/All Constraints/Metrics.npy", allow_pickle=True).item(),
-    ]
 
-    constraint_pops = [
-        [np.load("./Delenox_Experiment_Data/No Constraints/Phase0/Population_0.npy", allow_pickle=True).item()],
-        [np.load("./Delenox_Experiment_Data/Entrance Required/Phase0/Population_0.npy", allow_pickle=True).item()],
-        [np.load("./Delenox_Experiment_Data/Lateral Stability/Phase0/Population_0.npy", allow_pickle=True).item()],
-        [np.load("./Delenox_Experiment_Data/Minimum Bounding Box/Phase0/Population_0.npy", allow_pickle=True).item()],
-        [np.load("./Delenox_Experiment_Data/Traversable Interior/Phase0/Population_0.npy", allow_pickle=True).item()],
-        [np.load("./Delenox_Experiment_Data/Minimum Interior Ratio/Phase0/Population_0.npy", allow_pickle=True).item()],
-        [np.load("./Delenox_Experiment_Data/MBB + LS/Phase0/Population_0.npy", allow_pickle=True).item()],
-        [np.load("./Delenox_Experiment_Data/MBB + TI/Phase0/Population_0.npy", allow_pickle=True).item()],
-        [np.load("./Delenox_Experiment_Data/MIR + TI/Phase0/Population_0.npy", allow_pickle=True).item()],
-        [np.load("./Delenox_Experiment_Data/All Constraints/Phase0/Population_0.npy", allow_pickle=True).item()],
-    ]
-
-    constraint_labels = [
-        "No Constraints",
-        "Entrance Required",
-        "Lateral Stability",
-        "Minimum Bounding Box",
-        "Traversable Interior",
-        "Minimum Interior Ratio",
-        "Minimum Bounding Box + Lateral Stability",
-        "Minimum Bounding Box + Traversable Interior",
-        "Minimum Interior Ratio + Traversable Interior",
-        "All Constraints"
-    ]
-
-    constraint_colors = [
-        "Blue",
-        "Red",
-        "Green",
-        "Black",
-        "Yellow",
-        "Orange",
-        "Brown",
-        "Purple",
-        "Cyan",
-        "Gray"
-    ]
-
-    constraint_keys = ["Infeasible Size"]
-
-    lattice_diversity(constraint_pops, constraint_labels)
-
-    """plt.figure()
-    plt.title("Infeasible Size vs Generation")
-    plt.xlabel("Generation")
-    plt.ylabel("Infeasible Size")
-
-    for i in range(10):
-        x_train = np.asarray(range(100)).reshape(-1, 1)
-        y_train = np.asarray(constraint_metrics[i]["Infeasible Size"]).reshape(-1, 1)
-        linear_regression = LinearRegression()
-        linear_regression.fit(x_train, y_train)
-        line = linear_regression.predict(x_train)
-        plt.plot(x_train, line, label=constraint_labels[i], color=constraint_colors[i])
-
-    plt.grid()
-    legend = plt.legend(frameon=True, bbox_to_anchor=(1.005, 0.65), loc="upper left")
-    frame = legend.get_frame()
-    frame.set_facecolor('white')
-    frame.set_edgecolor('black')
-    plt.show()"""
