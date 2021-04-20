@@ -17,7 +17,7 @@ from Constraints import apply_constraints
 from Delenox_Config import value_range
 from Visualization import voxel_plot, plot_statistics
 
-plt.style.use('seaborn')
+# plt.style.use('seaborn')
 
 
 def pca_buildings(populations, phases):
@@ -156,40 +156,57 @@ def accuracy_plot(populations, models):
     plt.show()
 
 
-def lattice_diversity(populations, labels):
-    diversities = []
+def load_training_set(label):
+    return [np.load("D:/Persistent Archive Tests/{}/Phase{}/Training_Set.npy".format(label, i), allow_pickle=True)[:100] for i in range(10)]
+
+
+def load_populations(label):
+    return [[np.load("D:/Persistent Archive Tests/{}/Phase{}/Population_{}.npy".format(label, j, i), allow_pickle=True) for i in range(10)] for j in range(10)]
+
+
+def lattice_diversity(labels):
+
     df = pd.DataFrame({'Phase': [], 'Entropy': [], 'Experiment': []})
 
-    for population in range(len(populations)):
-        for phase in populations[population]:
-            print("Starting Phase")
+    pool = Pool(12)
 
-            lattices = [to_categorical(lattice) for lattice in phase.values()]
+    for label in range(len(labels)):
 
-            for lattice in lattices:
-                diversity = 0
+        population = load_training_set(labels[label])
 
-                flattened_lattice = lattice.ravel()
-                flattened_lattice = softmax(flattened_lattice)
+        for phase in range(len(population)):
+            print("Starting Experiment {} - Phase {}".format(label + 1, phase + 1))
 
-                for other in lattices:
-                    flattened_other = other.ravel()
-                    flattened_other = softmax(flattened_other)
-                    diversity = entropy(flattened_lattice, flattened_other)
+            diversities = []
+            results = []
+            lattices = [to_categorical(lattice) for lattice in population[phase]]
+            flattened_lattices = [softmax(lattice.ravel()) for lattice in lattices]
 
-                diversities.append(diversity)
+            for lattice in flattened_lattices:
+                results.append(pool.apply_async(vector_entropy, (lattice, flattened_lattices)))
 
-            print(np.mean(diversities))
-            tmp = pd.DataFrame({'Phase': [1],
+            for result in results:
+                diversities.append(result.get())
+
+            tmp = pd.DataFrame({'Phase': [phase],
                                 'Entropy': [np.mean(diversities)],
-                                'Experiment': [labels[population]]})
+                                'Experiment': [labels[label]]})
 
             df = pd.concat([df, tmp], axis=0)
 
-    ax = sns.catplot(x='Phase', y='Entropy', hue='Experiment', data=df, kind='bar')
-    ax.fig.suptitle('Entropy of Training Sets')
+    plt.figure()
+    plt.subplots_adjust(left=0.080, right=0.790, top=0.915, bottom=0.090)
+    ax = sns.lineplot(x='Phase', y='Entropy', hue='Experiment', data=df, ci='sd')
+    ax.set_title('Lattice Divergence in Novel Training Sets')
+    ax.legend(frameon=True, bbox_to_anchor=(1.005, 0.65), loc="upper left")
+    legend = ax.get_legend()
+    frame = legend.get_frame()
+    frame.set_facecolor('white')
+    frame.set_edgecolor('black')
     plt.show()
 
+    pool.close()
+    pool.join()
 
 def novel_diversity(populations):
 
@@ -201,7 +218,7 @@ def novel_diversity(populations):
                                               phase=0,
                                               save=False,
                                               experiment=None)
-    pool = Pool(11)
+    pool = Pool(4)
 
     for population in range(len(populations)):
         print("Starting Population {:d}".format(population))
@@ -271,19 +288,21 @@ def vector_novelty(vector1, population):
 
 
 def vector_entropy(vector1, population):
-    diversities = []
+    diversity = []
     for neighbour in population:
         if not np.array_equal(vector1, neighbour):
-            diversities.append(entropy(vector1, neighbour))
-    return np.mean(diversities)
+            diversity.append(entropy(vector1, neighbour))
+    return np.mean(diversity)
 
 
-def plot_metric(metric_list, labels, colors, keys):
+def plot_metric(labels, colors, keys):
+
+    metric_list = [np.load("D:/Persistent Archive Tests/{}/Phase{}/Metrics.npy".format(directory, 9), allow_pickle=True) for directory in labels]
 
     for key in keys:
 
         plt.figure()
-        plt.title("{} vs Generation over {:d} Runs.".format(key, 7))
+        plt.title("{} vs Generation over {:d} Runs.".format(key, 10))
         plt.xlabel("Generation")
         plt.ylabel(key)
 
@@ -312,9 +331,8 @@ def plot_metric(metric_list, labels, colors, keys):
                              y1=mean + ci,
                              y2=mean - ci,
                              color=colors[counter],
-                             alpha=0.25)
+                             alpha=0.1)
 
-        plt.grid()
         legend = plt.legend(frameon=True)
         frame = legend.get_frame()
         frame.set_facecolor('white')
@@ -373,17 +391,17 @@ if __name__ == '__main__':
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
     subset_size = 1000
-    labels = ["Static AE", "Random AE", "Full History AE", "Full History DAE", "Latest Set AE", "Novelty Archive AE"]
-    colors = ['black', 'red', 'blue', 'green', 'brown', 'yellow']
+    labels = ["Static AE", "Random AE", "Full History AE", "Full History DAE", "Latest Set AE", "Latest Set DAE", "Novelty Archive AE"]
+    colors = ['black', 'red', 'blue', 'green', 'brown', 'yellow', 'purple']
     keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
 
     # Load the NEAT metrics and generated content from disk
-    metrics = [np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npy".format(directory, 9), allow_pickle=True) for directory in labels]
-    training_set = [[np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Training_Set.npy".format(directory, i), allow_pickle=True) for i in range(10)] for directory in labels]
+    # populations = [[[np.load("D:/Persistent Archive Tests/{}")]]]
 
-    # novel_diversity(training_sets)
+    # novel_diversity(training_set)
     # pca_buildings(training_sets, range(7))
-    accuracy_plot(training_set, labels)
-    # plot_metric(metrics, labels, colors, keys)
+    # accuracy_plot(training_set, labels)
+    # plot_metric(labels, colors, keys)
+    lattice_diversity(labels)
 
 
