@@ -148,60 +148,73 @@ def load_training_set(label):
 
 
 def load_populations(label):
-    return [[list(np.load("D:/Persistent Archive Tests/{}/Phase{}/Population_{}.npy".format(label, j, i), allow_pickle=True).item().values())[:-10] for i in range(10)] for j in range(10)]
+    return [[list(np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Population_{}.npy".format(label, j, i), allow_pickle=True).item().values())for i in range(10)] for j in range(10)]
 
 
 def lattice_diversity(experiment):
-    pass
+
+    pool = Pool(16)
+    experiment_population = load_populations(experiment)
+    experiment_diversity = []
+
+    for phase in range(len(experiment_population)):
+        phase_diversities = []
+        for population in range(len(experiment_population[phase])):
+            print("Starting Experiment {} - Phase {} - Population {}".format(experiment, phase, population))
+            lattices = [softmax(to_categorical(lattice).ravel()) for lattice in experiment_population[phase][population]]
+            results = [pool.apply_async(vector_entropy, (lattice, lattices)) for lattice in lattices]
+            phase_diversities.append(np.mean([result.get() for result in results]))
+        experiment_diversity.append(phase_diversities)
+    experiment_diversity = np.stack(experiment_diversity, axis=1)
+    means = np.mean(experiment_diversity, axis=1)
+    ci = np.std(experiment_diversity, axis=1) / np.sqrt(10) * 1.96
+    return means, ci
 
 
 def population_diversity(experiments):
 
-    pool = Pool(12)
-
     fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(12, 8), sharex=True, sharey=True)
     fig.suptitle("Population Diversity over {:d} Runs.".format(10))
 
-    counter = 0
+    baseline_means, baseline_ci = lattice_diversity(experiments[0])
 
-    for experiment in experiments:
-        experiment_population = load_populations(experiment)
+    for experiment in range(1, len(experiments)):
+        means, ci = lattice_diversity(experiments[experiment])
+        axis = axes[locations[experiment - 1][0]][locations[experiment - 1][1]]
+        axis.errorbar(x=range(10), y=baseline_means, label=labels[0], color=colors[0])
+        axis.errorbar(x=range(10), y=means, label=labels[experiment], color=colors[experiment])
+        axis.fill_between(x=range(10), y1=baseline_means + baseline_ci, y2=baseline_means - baseline_ci, color=colors[0], alpha=0.1)
+        axis.fill_between(x=range(10), y1=means + ci, y2=means - ci, color=colors[experiment], alpha=0.1)
 
-        experiment_diversity = []
-
-        for phase in range(len(experiment_population)):
-            phase_diversities = []
-            for population in range(len(experiment_population[phase])):
-                print("Starting Experiment {} - Phase {} - Population {}".format(experiment, phase, population))
-
-                lattices = [softmax(to_categorical(lattice).ravel()) for lattice in experiment_population[phase][population]]
-                results = []
-                population_diversities = []
-
-                for lattice in lattices:
-                    results.append(pool.apply_async(vector_entropy, (lattice, lattices)))
-                for result in results:
-                    population_diversities.append(result.get())
-                phase_diversities.append(np.mean(population_diversities))
-            experiment_diversity.append(phase_diversities)
-
-        experiment_diversity = np.stack(experiment_diversity, axis=1)
-        means = np.mean(experiment_diversity, axis=1)
-        ci = np.std(experiment_diversity, axis=1) / np.sqrt(10) * 1.96
-
-
-        # Plotting the mean of given metric over generations
-        plt.errorbar(x=range(10), y=means, label=labels[counter], color=colors[counter])
-        plt.fill_between(x=range(10), y1=means + ci, y2=means - ci, color=colors[counter], alpha=0.1)
-
-        counter += 1
+        axis.legend()
+        axis.grid()
 
     plt.setp(axes[-1, :], xlabel='Phase')
     plt.setp(axes[:, 0], ylabel='KL Divergence')
     plt.tight_layout()
     plt.show()
-    pool.close()
-    pool.join()
+
+
+def plot_metric(experiments, function, title):
+    fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(12, 8), sharex=True, sharey=True)
+    fig.suptitle("{} over {:d} Runs.".format(title, 10))
+
+    baseline_means, baseline_ci = function(experiments[0])
+
+    for experiment in range(1, len(experiments)):
+        means, ci = function(experiments[experiment])
+        axis = axes[locations[experiment - 1][0]][locations[experiment - 1][1]]
+        axis.errorbar(x=range(10), y=baseline_means, label=labels[0], color=colors[0])
+        axis.errorbar(x=range(10), y=means, label=labels[experiment], color=colors[experiment])
+        axis.fill_between(x=range(10), y1=baseline_means + baseline_ci, y2=baseline_means - baseline_ci, color=colors[0], alpha=0.1)
+        axis.fill_between(x=range(10), y1=means + ci, y2=means - ci, color=colors[experiment], alpha=0.1)
+        axis.legend()
+        axis.grid()
+
+    plt.setp(axes[-1, :], xlabel='Phase')
+    plt.setp(axes[:, 0], ylabel=title)
+    plt.tight_layout()
+    plt.show()
 
 
 def novel_diversity(populations):
@@ -284,11 +297,7 @@ def vector_novelty(vector1, population):
 
 
 def vector_entropy(vector1, population):
-    diversity = []
-    for neighbour in population:
-        if not np.array_equal(vector1, neighbour):
-            diversity.append(entropy(vector1, neighbour))
-    return np.mean(diversity)
+    return np.mean([entropy(vector1, neighbour) for neighbour in population])
 
 
 def plot_metric(labels, colors, keys):
@@ -345,10 +354,10 @@ if __name__ == '__main__':
 
     subset_size = 1000
     labels = ["Static AE", "Random AE", "Full History AE", "Full History DAE", "Latest Set AE", "Latest Set DAE", "Novelty Archive AE"]
-    colors = ['black', 'red', 'blue', 'green', 'brown', 'yellow', 'purple']
+    colors = ['black', 'red', 'blue', 'green', 'brown', 'orange', 'purple']
     keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
 
-    population_diversity(['Static AE'])
+    population_diversity(labels)
 
     # novel_diversity(training_set)
     # pca_buildings(range(10))
