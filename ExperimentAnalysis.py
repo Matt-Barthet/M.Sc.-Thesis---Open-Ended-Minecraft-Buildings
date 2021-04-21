@@ -20,6 +20,8 @@ import itertools
 # plt.style.use('seaborn')
 flatten = itertools.chain.from_iterable
 
+locations = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)]
+
 
 def pca_buildings(phases):
 
@@ -146,52 +148,58 @@ def load_training_set(label):
 
 
 def load_populations(label):
-    return [[np.load("D:/Persistent Archive Tests/{}/Phase{}/Population_{}.npy".format(label, j, i), allow_pickle=True) for i in range(10)] for j in range(10)]
+    return [[list(np.load("D:/Persistent Archive Tests/{}/Phase{}/Population_{}.npy".format(label, j, i), allow_pickle=True).item().values())[:-10] for i in range(10)] for j in range(10)]
 
 
-def lattice_diversity(labels):
+def lattice_diversity(experiment):
+    pass
 
-    df = pd.DataFrame({'Phase': [], 'Entropy': [], 'Experiment': []})
 
-    pool = Pool(16)
+def population_diversity(experiments):
 
-    for label in range(len(labels)):
+    pool = Pool(12)
 
-        population = load_training_set(labels[label])
+    fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(12, 8), sharex=True, sharey=True)
+    fig.suptitle("Population Diversity over {:d} Runs.".format(10))
 
-        for phase in range(len(population)):
-            print("Starting Experiment {} - Phase {}".format(label + 1, phase + 1))
-            timer = time.time()
-            diversities = []
-            results = []
-            lattices = [to_categorical(lattice) for lattice in population[phase]]
-            flattened_lattices = [softmax(lattice.ravel()) for lattice in lattices]
+    counter = 0
 
-            for lattice in flattened_lattices:
-                results.append(pool.apply_async(vector_entropy, (lattice, flattened_lattices)))
+    for experiment in experiments:
+        experiment_population = load_populations(experiment)
 
-            for result in results:
-                diversities.append(result.get())
+        experiment_diversity = []
 
-            tmp = pd.DataFrame({'Phase': [phase],
-                                'Entropy': [np.mean(diversities)],
-                                'Experiment': [labels[label]]})
+        for phase in range(len(experiment_population)):
+            phase_diversities = []
+            for population in range(len(experiment_population[phase])):
+                print("Starting Experiment {} - Phase {} - Population {}".format(experiment, phase, population))
 
-            df = pd.concat([df, tmp], axis=0)
+                lattices = [softmax(to_categorical(lattice).ravel()) for lattice in experiment_population[phase][population]]
+                results = []
+                population_diversities = []
 
-            print(time.time() - timer)
+                for lattice in lattices:
+                    results.append(pool.apply_async(vector_entropy, (lattice, lattices)))
+                for result in results:
+                    population_diversities.append(result.get())
+                phase_diversities.append(np.mean(population_diversities))
+            experiment_diversity.append(phase_diversities)
 
-    plt.figure()
-    plt.subplots_adjust(left=0.080, right=0.790, top=0.915, bottom=0.090)
-    ax = sns.lineplot(x='Phase', y='Entropy', hue='Experiment', data=df, ci='sd')
-    ax.set_title('Lattice Divergence in Novel Training Sets')
-    ax.legend(frameon=True, bbox_to_anchor=(1.005, 0.65), loc="upper left")
-    legend = ax.get_legend()
-    frame = legend.get_frame()
-    frame.set_facecolor('white')
-    frame.set_edgecolor('black')
+        experiment_diversity = np.stack(experiment_diversity, axis=1)
+        means = np.mean(experiment_diversity, axis=1)
+        ci = np.std(experiment_diversity, axis=1) / np.sqrt(10) * 1.96
+
+
+        # Plotting the mean of given metric over generations
+        plt.errorbar(x=range(10), y=means, label=labels[counter], color=colors[counter])
+        plt.fill_between(x=range(10), y1=means + ci, y2=means - ci, color=colors[counter], alpha=0.1)
+
+        counter += 1
+
+    plt.setp(axes[-1, :], xlabel='Phase')
+    plt.setp(axes[:, 0], ylabel='KL Divergence')
+    plt.tight_layout()
     plt.show()
-
     pool.close()
     pool.join()
 
@@ -328,49 +336,6 @@ def plot_metric(labels, colors, keys):
     plt.show()
 
 
-def fix_bugged_population(population):
-    fixed = [population[0][-subset_size:]]
-    for i in range(6):
-        offset = []
-        for j in range(10):
-            offset += (list(range(j * 600 + i * 100, j * 600 + i * 100 + 100)))
-        fixed.append(population[-1][offset][-subset_size:])
-    return fixed
-
-
-"""
-def cluster_analysis(population, metrics, title, axis_labels, config):
-    :param population:
-    :param metrics:
-    :param title:
-    :param axis_labels:
-    :param config:
-    :return:
-    clustering = KMedoids(n_clusters=5)
-    data = np.asarray(list(zip(list(metrics[0].values()), list(metrics[1].values()))))
-    data_dict = {k: [d[k] for d in metrics] for k in metrics[0].keys()}
-    clustering.fit(data)
-    clusters = clustering.predict(data)
-    medoids = clustering.cluster_centers_
-
-    for medoid in medoids:
-        for genome, metrics in data_dict.items():
-            if list(medoid) == list(metrics):
-                medoid_lattice = generate_lattice(population[genome], config, False)[0][0]
-                voxel_plot(convert_to_integer(medoid_lattice), "Medoid at " + str(list(medoid)), "")
-                break
-
-    plt.figure()
-    plt.scatter(data[:, 0], data[:, 1], c=clusters, s=50, cmap='viridis')
-    plt.scatter(medoids[:, 0], medoids[:, 1], c='black', s=200, alpha=0.5)
-    plt.xlabel(axis_labels[0])
-    plt.ylabel(axis_labels[1])
-    plt.title(title)
-    plt.savefig("./Delenox_Experiment_Data/Run" + str(current_run) + "/Clustering_" + str(time.time()) + ".png")
-    plt.show()
-"""
-
-
 if __name__ == '__main__':
 
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
@@ -383,13 +348,12 @@ if __name__ == '__main__':
     colors = ['black', 'red', 'blue', 'green', 'brown', 'yellow', 'purple']
     keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
 
-    # Load the NEAT metrics and generated content from disk
-    # populations = [[[np.load("D:/Persistent Archive Tests/{}")]]]
+    population_diversity(['Static AE'])
 
     # novel_diversity(training_set)
-    pca_buildings(range(10))
+    # pca_buildings(range(10))
     # accuracy_plot(training_set, labels)
     # plot_metric(labels, colors, keys)
-    lattice_diversity(labels)
+    # lattice_diversity(labels)
 
 
