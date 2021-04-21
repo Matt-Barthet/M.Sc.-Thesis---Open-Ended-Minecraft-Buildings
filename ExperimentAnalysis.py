@@ -11,37 +11,22 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from mpl_toolkits.mplot3d import axes3d, Axes3D  #<-- Note the capitalization!
-
+import time
 from Autoencoder import load_model, convert_to_integer, test_accuracy, create_auto_encoder, auto_encoder_3d
 from Constraints import apply_constraints
 from Delenox_Config import value_range
 from Visualization import voxel_plot, plot_statistics
-
+import itertools
 # plt.style.use('seaborn')
+flatten = itertools.chain.from_iterable
 
 
-def pca_buildings(populations, phases):
+def pca_buildings(phases):
 
-    converted_population = []
-    for population in populations:
-        converted_phases = []
-        for phase in population:
-            converted_lattices = []
-            for lattice in phase:
-                converted_lattices.append(convert_to_integer(lattice).ravel())
-            converted_phases.append(converted_lattices)
-        converted_population.append(converted_phases)
-
-    fit = []
-    for population in converted_population:
-        for phase in population:
-            for lattice in phase:
-                fit.append(lattice)
-
+    populations = [[np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Training_Set.npy".format(label, i), allow_pickle=True)[:-250] for i in range(10)] for label in labels]
+    converted_population = [[[convert_to_integer(lattice).ravel() for lattice in phase] for phase in population] for population in populations]
     pca = PCA(n_components=2)
-    pca.fit(fit)
-    fit.clear()
-
+    pca.fit(list(flatten(list(flatten(converted_population)))))
     eucl_df = pd.DataFrame({'Phase': [], 'Average Euclidean Distance': [], 'Experiment': []})
 
     for population in range(len(converted_population)):
@@ -157,7 +142,7 @@ def accuracy_plot(populations, models):
 
 
 def load_training_set(label):
-    return [np.load("D:/Persistent Archive Tests/{}/Phase{}/Training_Set.npy".format(label, i), allow_pickle=True)[:100] for i in range(10)]
+    return [np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Training_Set.npy".format(label, i), allow_pickle=True)[:100] for i in range(10)]
 
 
 def load_populations(label):
@@ -168,7 +153,7 @@ def lattice_diversity(labels):
 
     df = pd.DataFrame({'Phase': [], 'Entropy': [], 'Experiment': []})
 
-    pool = Pool(12)
+    pool = Pool(16)
 
     for label in range(len(labels)):
 
@@ -176,7 +161,7 @@ def lattice_diversity(labels):
 
         for phase in range(len(population)):
             print("Starting Experiment {} - Phase {}".format(label + 1, phase + 1))
-
+            timer = time.time()
             diversities = []
             results = []
             lattices = [to_categorical(lattice) for lattice in population[phase]]
@@ -194,6 +179,8 @@ def lattice_diversity(labels):
 
             df = pd.concat([df, tmp], axis=0)
 
+            print(time.time() - timer)
+
     plt.figure()
     plt.subplots_adjust(left=0.080, right=0.790, top=0.915, bottom=0.090)
     ax = sns.lineplot(x='Phase', y='Entropy', hue='Experiment', data=df, ci='sd')
@@ -207,6 +194,7 @@ def lattice_diversity(labels):
 
     pool.close()
     pool.join()
+
 
 def novel_diversity(populations):
 
@@ -297,7 +285,7 @@ def vector_entropy(vector1, population):
 
 def plot_metric(labels, colors, keys):
 
-    metric_list = [np.load("D:/Persistent Archive Tests/{}/Phase{}/Metrics.npy".format(directory, 9), allow_pickle=True) for directory in labels]
+    metric_list = [np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npy".format(directory, 9), allow_pickle=True) for directory in labels]
 
     for key in keys:
 
@@ -399,7 +387,7 @@ if __name__ == '__main__':
     # populations = [[[np.load("D:/Persistent Archive Tests/{}")]]]
 
     # novel_diversity(training_set)
-    # pca_buildings(training_sets, range(7))
+    pca_buildings(range(10))
     # accuracy_plot(training_set, labels)
     # plot_metric(labels, colors, keys)
     lattice_diversity(labels)
