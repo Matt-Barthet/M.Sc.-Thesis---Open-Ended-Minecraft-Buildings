@@ -113,6 +113,13 @@ venv.bak/
 # Output Files
 Delenox_Experiment_Data/
 
+# IML Files
+.iml
+.xml
+.idea/
+.idea/Minecraft-Project.iml
+.idea/misc.xml
+
 # Spyder project settings
 .spyderproject
 .spyproject
