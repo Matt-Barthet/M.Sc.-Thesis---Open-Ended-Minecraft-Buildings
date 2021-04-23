@@ -15,7 +15,7 @@ from scipy.stats import entropy
 from sklearn.decomposition import PCA
 from tensorflow.python.keras.utils.np_utils import to_categorical
 
-from Autoencoder import load_model, convert_to_integer, test_accuracy
+from Autoencoder import load_model, convert_to_integer, test_accuracy, calculate_error
 
 # plt.style.use('seaborn')
 flatten = itertools.chain.from_iterable
@@ -110,20 +110,35 @@ def lattice_diversity(experiment):
     pool.join()
     return means, ci
 
-
+test_pop = []
 def test_population(experiments):
-    test_pop = []
     for experiment in experiments:
         phases = load_populations(experiment)
         for populations in phases:
             for population in populations:
                 for building in random.sample(population, 10):
                     test_pop.append(building)
-    return test_pop
 
 def reconstruction_accuracy(experiment):
+    means = []
+    cis = []
+    for phase in range(10):
+        try:
+            encoder = load_model("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/encoder".format(experiment, phase))
+            decoder = load_model("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/decoder".format(experiment, phase))
+        except FileNotFoundError:
+            encoder = load_model("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/encoder".format(experiment, 0))
+            decoder = load_model("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/decoder".format(experiment, 0))
+        errors = []
+        for lattice in test_pop:
+            compressed = encoder.predict(lattice[None])[0]
+            reconstructed = decoder.predict(compressed[None])[0]
+            integer_reconstruct = convert_to_integer(reconstructed)
+            errors.append(calculate_error(lattice, integer_reconstruct))
+        means.append(np.mean(errors))
+        cis.append(np.std(errors) / np.sqrt(len(errors)) * 1.96)
 
-    pass
+    return means, cis
 
 
 pca_locs = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (1, 0), (1, 1), (1, 2), (1, 3), (1, 4)]
@@ -279,7 +294,7 @@ if __name__ == '__main__':
     keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
 
     # load_and_compress(labels)
-    # grid_plot(labels, pca_graphs, "PCA")
+    grid_plot(labels, reconstruction_accuracy, "Reconstruction Accuracy")
     # pca_graphs(labels)
     test_population(labels)
 

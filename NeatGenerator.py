@@ -151,8 +151,8 @@ class NeatGenerator:
                 self.current_gen + 1, self.population_id, self.current_phase, self.experiment)
 
         if self.current_gen + 1 == generations_per_run:
-            np.save(
-                "./Delenox_Experiment_Data/{}/Phase{:d}/Population_{:d}.npy".format(self.experiment, self.current_phase,
+            np.save_compressed(
+                "./Delenox_Experiment_Data/{}/Phase{:d}/Population_{:d}.npz".format(self.experiment, self.current_phase,
                                                                                     self.population_id), lattices)
             for individual in range(np.min([best_fit_count, len(lattices)])):
                 self.phase_best_fit.append(lattices[sorted_keys[-individual]])
@@ -310,7 +310,7 @@ def create_seed_files(config):
     :param config: CPPN-NEAT config file specifying the parameters for the genomes.
     """
     training_population, _ = create_population_lattices(config, False)
-    np.save("./Delenox_Experiment_Data/Seed/Initial_Training_Set.npy", np.asarray(training_population))
+    np.save_compressed("./Delenox_Experiment_Data/Seed/Initial_Training_Set.npz", np.asarray(training_population))
     _ = create_auto_encoder(model_type=auto_encoder_3d,
                             phase=-1,
                             population=np.asarray(training_population),
@@ -327,7 +327,7 @@ def create_seed_files(config):
 
 if __name__ == "__main__":
 
-    seed = np.load("Delenox_Experiment_Data/Seed/Initial_Training_Set.npy")
+    seed = np.load("Delenox_Experiment_Data/Seed/Initial_Training_Set.npz")
     _ = create_auto_encoder(model_type=auto_encoder_3d,
                             phase=-1,
                             population=seed,
@@ -360,15 +360,8 @@ if __name__ == "__main__":
     (generator, best_fit, metrics) = generator.run_neat(0, experiment, False)
 
     # Save the metrics to a numpy file for later extraction
-    np.save('Delenox_Experiment_Data/{}/Metrics.npy'.format(experiment), metrics)
+    np.save_compressed('Delenox_Experiment_Data/{}/Metrics.npz'.format(experiment), metrics)
 
     # Save the neat population to pickle file in the experiment folder
     with open("Delenox_Experiment_Data/{}/Neat_Population.pkl".format(experiment), "wb+") as f:
         pickle.dump(generator, f)
-
-    """plot_statistics(
-        values=np.mean(metrics['Infeasible Size'], axis=-1),
-        confidence=np.std(metrics['Infeasible Size'], axis=-1),
-        key='Infeasible Size',
-        phase=0
-    )"""

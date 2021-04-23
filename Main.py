@@ -7,7 +7,7 @@ if __name__ == '__main__':
 
     # Flag to test a static configuration of DeLeNoX, where no transformation phases take place
     static = False
-    noisy = True
+    noisy = False
 
     experiment = "Retrained AE - Novelty Archive"
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
@@ -31,8 +31,8 @@ if __name__ == '__main__':
             training_population = []
         else:
             try:
-                neat_metrics = np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npy".format(experiment, phase), allow_pickle=True).item()
-                training_population = list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npy".format(experiment, phase), allow_pickle=True))
+                neat_metrics = np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npz".format(experiment, phase), allow_pickle=True).item()
+                training_population = list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, phase), allow_pickle=True))
             except FileNotFoundError:
                 neat_metrics = {'Experiment': experiment, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [],
                                 'Connection Complexity': [],
@@ -65,7 +65,7 @@ if __name__ == '__main__':
             pickle.dump(generator, open("./Delenox_Experiment_Data/{}/Phase{:d}/Neat_Population_{:d}.pkl".format(experiment, phase, number), "wb+"))
 
             # Save the latest additions to the novel population to a numpy file
-            np.save("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npy".format(experiment, phase), np.asarray(training_population))
+            np.save_compressed("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, phase), np.asarray(training_population))
 
             # Update the metrics dictionary with this phase' results
             for key in metrics.keys():
@@ -77,18 +77,18 @@ if __name__ == '__main__':
                     pass
 
             # Save the latest metrics to a numpy file for later extraction
-            np.save("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npy".format(experiment, phase), neat_metrics)
+            np.save_compressed("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npz".format(experiment, phase), neat_metrics)
 
         """
         Transformation Phase:
         1) If required, rewind back to all previous phases and construct a historical archive of training sets
         2) Create a new auto-encoder with the data generated from this iteration's exploration phase
-        3) Visualize metrics of the newly generated auto-encoder and save figures to disk
+        3) Visualize metrics of the newly generated auto-encoder and `save` figures to disk
         """
         if not static and not os.path.exists('Delenox_Experiment_Data/{}/Phase{:d}/encoder.json'.format(experiment, phase)):
             training_history = []
             for rewind in range(phase + 1):
-                training_history += list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npy".format(experiment, rewind)))
+                training_history += list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, rewind)))
             ae, encoder, decoder = create_auto_encoder(model_type=auto_encoder_3d,
                                                        phase=phase,
                                                        experiment=experiment,
