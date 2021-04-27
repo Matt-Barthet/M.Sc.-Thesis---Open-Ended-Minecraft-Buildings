@@ -32,12 +32,7 @@ def create_auto_encoder(model_type, phase, experiment, population=None, noisy=No
     :param population: population of lattices to train the model on (given when performing Delenox)
     :return: the generated encoder and decoder models
     """
-
-    # input_buildings, lattices_noisy = create_population_lattices(config)
-
     ae, encoder_model, decoder_model = model_type(compressed_length)
-
-    # Compiling the AE and fitting it using the noisy population as input and the original population as the target
     ae.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['categorical_accuracy', 'binary_accuracy'])
 
     encoder_name = "encoder"

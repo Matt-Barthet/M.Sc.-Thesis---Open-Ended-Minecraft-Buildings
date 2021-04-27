@@ -4,6 +4,12 @@ import tensorflow as tf
 import neat
 import pickle
 
+
+def sinc(x):
+    x = max(-60.0, min(60.0, 5.0 * x))
+    return (np.sin(x) + 1) / 2
+
+
 # General Parameters
 thread_count = 16
 number_of_phases = 10
@@ -34,18 +40,6 @@ add_to_archive = 3
 # Parameters for evolutionary algorithm using latent vector space
 latent_mutation_rate = 0.1
 latent_variable_range = [-250, 250]
-
-
-def sinc(x):
-    x = max(-60.0, min(60.0, 5.0 * x))
-    return (np.sin(x) + 1) / 2
-
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-physical_devices = tf.config.experimental.list_physical_devices('GPU')
-assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
-tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 # Load configuration file according to the given path and setting relevant parameters.
 local_dir = os.path.dirname(__file__)

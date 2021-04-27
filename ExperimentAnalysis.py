@@ -20,11 +20,14 @@ ae_label = ['Vanilla AE', 'De-Noising AE']
 test_pop = []
 process_count = 8
 
+
 def load_training_set(label):
     return [list(np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Training_Set.npz".format(label, i), allow_pickle=True)['arr_0'])[-1000:] for i in range(10)]
 
+
 def load_populations(label):
     return [[list(np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Population_{}.npz".format(label, j, i), allow_pickle=True)['arr_0'].item().values()) for i in range(10)] for j in range(10)]
+
 
 def vector_entropy(vector1, population):
     return np.mean([entropy(vector1, neighbour) for neighbour in population])
