@@ -1,88 +1,24 @@
-import bz2
 import itertools
-import os
-import pickle as pkl
-from multiprocessing import Pool
 import random
-
+from multiprocessing import Pool
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
 import tensorflow as tf
 from scipy.special import softmax
 from scipy.stats import entropy
 from sklearn.decomposition import PCA
 from tensorflow.python.keras.utils.np_utils import to_categorical
 
-from Autoencoder import load_model, convert_to_integer, test_accuracy, calculate_error
+from Autoencoder import load_model, convert_to_integer, calculate_error
 
 # plt.style.use('seaborn')
 flatten = itertools.chain.from_iterable
 
-locations = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)]
-
-
-def load_and_compress(labels):
-    for label in labels:
-        for phase in range(10):
-
-            try:
-                training_set = np.load("D:/Persistent Archive Tests/{}/Phase{}/Training_Set.npy".format(label, phase), allow_pickle=True)
-                np.savez_compressed("D:/Persistent Archive Tests/{}/Phase{}/Training_Set.npz".format(label, phase), training_set)
-                os.remove("D/Persistent Archive Tests/{}/Phase{}/Training_Set.npy".format(label, phase))
-            except FileNotFoundError:
-                pass
-
-            try:
-                for population in range(10):
-                    pop = pkl.load(open("D:/Persistent Archive Tests/{}/Phase{}/Neat_Population_{}.pkl".format(label, phase, population), 'rb'))
-                    sfile = bz2.BZ2File("D:/Persistent Archive Tests/{}/Phase{}/Neat_Population_{}.bz2".format(label, phase, population), 'wb')
-                    pkl.dump(pop, sfile)
-                    os.remove("D:/Persistent Archive Tests/{}/Phase{}/Neat_Population_{}.pkl".format(label, phase, population))
-            except FileNotFoundError:
-                pass
-
-            for population in range(10):
-                pop = np.load("D:/Persistent Archive Tests/{}/Phase{}/Population_{}.npy".format(label, phase, population), allow_pickle=True)
-                np.savez_compressed("D:/Persistent Archive Tests/{}/Phase{}/Population_{}.npz".format(label, phase, population), pop)
-                os.remove("D:/Persistent Archive Tests/{}/Phase{}/Population_{}.npy".format(label, phase, population))
-
-
-def accuracy_plot(populations, models):
-    df = pd.DataFrame({'Phase': [], 'Reconstruction Error': [], 'Experiment': []})
-
-    for population in range(len(models)):
-
-        for phase in range(len(populations)):
-            print("Starting new phase")
-
-            if population != 0:
-                encoder = load_model("{}Phase{}/encoder".format(models[population], 9))
-                decoder = load_model("{}Phase{}/decoder".format(models[population], 9))
-            else:
-                encoder = load_model("{}Phase{}/encoder".format(models[population], 0))
-                decoder = load_model("{}Phase{}/decoder".format(models[population], 0))
-
-            errors = test_accuracy(encoder, decoder, populations[population][phase], mean=False)
-
-            for error in errors:
-                tmp = pd.DataFrame({'Phase': [phase + 1],
-                                    'Reconstruction Error': [error],
-                                    'Experiment': [labels[population]]})
-                df = pd.concat([df, tmp], axis=0)
-
-    plt.figure()
-    plt.subplots_adjust(left=0.080, right=0.790, top=0.915, bottom=0.090)
-    ax = sns.lineplot(x='Phase', y='Reconstruction Error', hue='Experiment', data=df, ci='sd')
-    ax.set_title('Average Reconstruction Error using Final AE')
-    ax.legend(frameon=True, bbox_to_anchor=(1.005, 0.65), loc="upper left")
-    legend = ax.get_legend()
-    frame = legend.get_frame()
-    frame.set_facecolor('white')
-    frame.set_edgecolor('black')
-    plt.show()
-
+locations = [(0, 0), (0, 1), (1, 0), (1, 1)]
+pca_locs = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (1, 0), (1, 1), (1, 2), (1, 3), (1, 4)]
+ae_label = ['Vanilla AE', 'De-Noising AE']
+test_pop = []
+process_count = 8
 
 def load_training_set(label):
     return [list(np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Training_Set.npz".format(label, i), allow_pickle=True)['arr_0'])[-1000:] for i in range(10)]
@@ -90,9 +26,12 @@ def load_training_set(label):
 def load_populations(label):
     return [[list(np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Population_{}.npz".format(label, j, i), allow_pickle=True)['arr_0'].item().values()) for i in range(10)] for j in range(10)]
 
+def vector_entropy(vector1, population):
+    return np.mean([entropy(vector1, neighbour) for neighbour in population])
+
 
 def lattice_diversity(experiment):
-    pool = Pool(12)
+    pool = Pool(process_count)
     experiment_population = load_populations(experiment)
     experiment_diversity = []
     for phase in range(len(experiment_population)):
@@ -110,7 +49,7 @@ def lattice_diversity(experiment):
     pool.join()
     return means, ci
 
-test_pop = []
+
 def test_population(experiments):
     for experiment in experiments:
         phases = load_populations(experiment)
@@ -119,6 +58,8 @@ def test_population(experiments):
                 for building in random.sample(population, 10):
                     test_pop.append(building)
 
+
+# TODO: Test this function.
 def reconstruction_accuracy(experiment):
     means = []
     cis = []
@@ -137,12 +78,10 @@ def reconstruction_accuracy(experiment):
             errors.append(calculate_error(lattice, integer_reconstruct))
         means.append(np.mean(errors))
         cis.append(np.std(errors) / np.sqrt(len(errors)) * 1.96)
-
     return means, cis
 
 
-pca_locs = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (1, 0), (1, 1), (1, 2), (1, 3), (1, 4)]
-
+# TODO: Modular version of the PCA function for grid_plot
 def pca_graphs(experiments):
     converted_population = []
     for experiment in experiments:
@@ -213,93 +152,44 @@ def pca_graphs(experiments):
     diversity_fig.show()
 
 
+# TODO: Modular version of the NEAT metrics visualizations for grid_plot
+def neat_metric(experiments, metric):
+    pass
+
+
 def grid_plot(experiments, function, title):
-    fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(12, 8), sharex=True, sharey=True)
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 9), sharex=True, sharey=True)
     fig.suptitle("{} over {:d} Runs.".format(title, 10))
     baseline_means, baseline_ci = function(experiments[0])
-    for experiment in range(1, len( )):
-        means, ci = function(experiments[experiment])
-        axis = axes[locations[experiment - 1][0]][locations[experiment - 1][1]]
+    counter = 0
+    for experiment in [(1, ), (2, 3), (4, 5), (6, 7)]:
+        axis = axes[locations[counter][0]][locations[counter][1]]
         axis.errorbar(x=range(10), y=baseline_means, label=labels[0], color=colors[0])
-        axis.errorbar(x=range(10), y=means, label=labels[experiment], color=colors[experiment])
         axis.fill_between(x=range(10), y1=baseline_means + baseline_ci, y2=baseline_means - baseline_ci, color=colors[0], alpha=0.1)
-        axis.fill_between(x=range(10), y1=means + ci, y2=means - ci, color=colors[experiment], alpha=0.1)
+        axis.set_title(labels[experiment[0]][:-3] + " Autoencoders")
+        for sub in range(len(experiment)):
+            means, ci = function(experiments[experiment[sub]])
+            axis.errorbar(x=range(10), y=means, label=ae_label[sub], color=colors[sub + 1])
+            axis.fill_between(x=range(10), y1=means + ci, y2=means - ci, color=colors[sub + 1], alpha=0.1)
         axis.legend()
         axis.grid()
+        counter += 1
     plt.setp(axes[-1, :], xlabel='Phase')
     plt.setp(axes[:, 0], ylabel=title)
     fig.tight_layout()
     fig.show()
 
 
-def vector_entropy(vector1, population):
-    return np.mean([entropy(vector1, neighbour) for neighbour in population])
-
-
-def plot_metric(labels, colors, keys):
-
-    metric_list = [np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npy".format(directory, 9), allow_pickle=True) for directory in labels]
-
-    for key in keys:
-
-        plt.figure()
-        plt.title("{} vs Generation over {:d} Runs.".format(key, 10))
-        plt.xlabel("Generation")
-        plt.ylabel(key)
-
-        for counter in range(len(metric_list)):
-
-            metric = np.asarray(metric_list[counter].item()[key])
-
-            if metric.shape == (10, 1000):
-                metric = np.stack(metric, axis=1)
-
-            generations = range(len(metric))
-
-            mean = np.mean(metric[generations], axis=1)
-            ci = np.std(metric[generations], axis=1) / np.sqrt(10) * 1.96
-
-            # Plotting the mean of given metric over generations
-            plt.errorbar(x=generations,
-                         y=mean,
-                         fmt='-',
-                         label=labels[counter],
-                         alpha=1,
-                         color=colors[counter])
-
-            # Filling the deviation from the mean in a translucent color.
-            plt.fill_between(x=generations,
-                             y1=mean + ci,
-                             y2=mean - ci,
-                             color=colors[counter],
-                             alpha=0.1)
-
-        legend = plt.legend(frameon=True)
-        frame = legend.get_frame()
-        frame.set_facecolor('white')
-        frame.set_edgecolor('black')
-    plt.show()
-
-
 if __name__ == '__main__':
 
-    os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
-    # tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-    subset_size = 1000
-    labels = ["Static AE", "Random AE", "Full History AE", "Full History DAE", "Latest Set AE", "Latest Set DAE", "Novelty Archive AE"]
-    colors = ['black', 'red', 'blue', 'green', 'brown', 'orange', 'purple']
+    labels = ["Static AE", "Random AE", "Full History AE", "Full History DAE", "Latest Set AE", "Latest Set DAE", "Novelty Archive AE", "Novelty Archive DAE"]
+    colors = ['black', 'red', 'blue', 'green', 'brown', 'orange', 'purple', 'cyan']
     keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
 
-    # load_and_compress(labels)
-    grid_plot(labels, reconstruction_accuracy, "Reconstruction Accuracy")
     # pca_graphs(labels)
+    grid_plot(labels, lattice_diversity, "Population Diversity")
     test_population(labels)
-
-    # accuracy_plot(training_set, labels)
-    # plot_metric(labels, colors, keys)
-    # lattice_diversity(labels)
-
 
