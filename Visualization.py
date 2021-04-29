@@ -78,8 +78,8 @@ def auto_encoder_plot(example, code, reconstruction, error, title=""):
     ax.set_title("Reconstructed Lattice - Error: " + str(error) + "%")
     ax = fig.gca(projection='3d')
     ax.voxels(reconstruction, edgecolor="k", facecolors=get_color_map(reconstruction))
-    plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Autoencoder_"+str(time.time())+".png")
-    # plt.show()
+    # plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Autoencoder_"+str(time.time())+".png")
+    plt.show()
 
 
 def plot_fitness(averages, stdev, generation_count, title, label=None):
