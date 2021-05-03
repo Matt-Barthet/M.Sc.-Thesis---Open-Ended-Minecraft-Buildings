@@ -69,9 +69,7 @@ def assess_quality(lattice):
     """
 
     """
-    (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)"""
-
-    """
+    (horizontal_footprint, depth_footprint, vertical_footprint, horizontal_middle, depth_middle, vertical_middle) = footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
     roof_count = 0
     walls = 0
     floor_count = 0

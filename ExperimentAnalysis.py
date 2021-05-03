@@ -9,8 +9,10 @@ from scipy.stats import entropy
 from sklearn.decomposition import PCA
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Autoencoder import load_model, convert_to_integer, calculate_error, add_noise
-from Visualization import voxel_plot, auto_encoder_plot
+from Visualization import voxel_plot, auto_encoder_plot, get_color_map
 from Delenox_Config import value_range
+from Constraints import *
+from NeatGenerator import novelty_search
 
 # plt.style.use('seaborn')
 flatten = itertools.chain.from_iterable
@@ -18,7 +20,7 @@ flatten = itertools.chain.from_iterable
 locations = [(0, 0), (0, 1), (1, 0), (1, 1)]
 pca_locs = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (1, 0), (1, 1), (1, 2), (1, 3), (1, 4)]
 ae_label = ['Vanilla AE', 'De-Noising AE']
-process_count = 8
+process_count = 16
 
 
 def load_training_set(label):
@@ -29,8 +31,28 @@ def load_populations(label):
     return [[list(np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Population_{}.npz".format(label, j, i), allow_pickle=True)['arr_0'].item().values()) for i in range(10)] for j in range(10)]
 
 
-def load_metric(labels, metric):
+def load_metric(label, metric):
+    try:
+        return np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npy".format(label, 9), allow_pickle=True).item()[metric]
+    except FileNotFoundError:
+        return np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npz".format(label, 9), allow_pickle=True)['arr_0'].item()[metric]
+
+def load_metrics(labels, metric):
     return [np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npy".format(directory, 9), allow_pickle=True)[metric] for directory in labels]
+
+
+def load_autoencoder(label, phase):
+    try:
+        encoder = load_model(
+            "Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/encoder".format(label, phase))
+        decoder = load_model(
+            "Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/decoder".format(label, phase))
+    except FileNotFoundError:
+        encoder = load_model(
+            "Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/encoder".format(label, 0))
+        decoder = load_model(
+            "Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/decoder".format(label, 0))
+    return encoder, decoder
 
 
 def vector_entropy(vector1, population):
@@ -44,7 +66,6 @@ def lattice_diversity(experiment, args=None):
     :param args: unused - needed for modularity
     :return: mean diversity for each phase and confidence intervals
     """
-    pool = Pool(process_count)
     experiment_population = load_populations(experiment)
     experiment_diversity = []
     for phase in range(len(experiment_population)):
@@ -58,8 +79,6 @@ def lattice_diversity(experiment, args=None):
     experiment_diversity = np.stack(experiment_diversity, axis=1)
     means = np.mean(experiment_diversity, axis=1)
     ci = np.std(experiment_diversity, axis=1) / np.sqrt(10) * 1.96
-    pool.close()
-    pool.join()
     return means, ci
 
 
@@ -151,16 +170,13 @@ def pca_graph(experiment, args=None):
 
 # TODO: Modular version of the NEAT metrics visualizations for grid_plot
 def neat_metric(experiment, metric):
-    metric = np.asarray(metric_list[counter].item()[key])
-
+    metric = np.asarray(load_metric(experiment, metric[0]))
     if metric.shape == (10, 1000):
         metric = np.stack(metric, axis=1)
-
     generations = range(len(metric))
-
     mean = np.mean(metric[generations], axis=1)
     ci = np.std(metric[generations], axis=1) / np.sqrt(10) * 1.96
-    pass
+    return mean, ci
 
 
 def grid_plot(experiments, function, title, args=None):
@@ -170,13 +186,13 @@ def grid_plot(experiments, function, title, args=None):
     counter = 0
     for experiment in [(1, ), (2, 3), (4, 5), (6, 7)]:
         axis = axes[locations[counter][0]][locations[counter][1]]
-        axis.errorbar(x=range(10), y=baseline_means, label=labels[0], color=colors[0])
-        axis.fill_between(x=range(10), y1=baseline_means + baseline_ci, y2=baseline_means - baseline_ci, color=colors[0], alpha=0.1)
+        axis.errorbar(x=range(len(baseline_means)), y=baseline_means, label=labels[0], color=colors[0])
+        axis.fill_between(x=range(len(baseline_means)), y1=baseline_means + baseline_ci, y2=baseline_means - baseline_ci, color=colors[0], alpha=0.1)
         axis.set_title(labels[experiment[0]][:-3] + " Autoencoders")
         for sub in range(len(experiment)):
             means, ci = function(experiments[experiment[sub]], (args, experiment[sub]))
-            axis.errorbar(x=range(10), y=means, label=ae_label[sub], color=colors[sub + 1])
-            axis.fill_between(x=range(10), y1=means + ci, y2=means - ci, color=colors[sub + 1], alpha=0.1)
+            axis.errorbar(x=range(len(means)), y=means, label=ae_label[sub], color=colors[sub + 1])
+            axis.fill_between(x=range(len(means)), y1=means + ci, y2=means - ci, color=colors[sub + 1], alpha=0.1)
         axis.legend()
         axis.grid()
         counter += 1
@@ -186,11 +202,67 @@ def grid_plot(experiments, function, title, args=None):
     fig.show()
 
 
+def novelty_spectrum(labels):
+    subplots = [[(5, 5, index * 5 + offset) for index in range(5)] for offset in range(1, 6)]
+    xlabels = ['Most\nNovel', 'Upper\nQuartile', 'Median\nNovel', 'Lower\nQuartile', 'Least\nNovel']
+    for experiment in labels:
+        print("Starting Experiment {}".format(experiment))
+        phases = load_training_set(experiment)
+        fig = plt.figure(figsize=(12, 12))
+        fig.suptitle("Range of Generated Content- {}".format(experiment), fontsize=18)
+        line = plt.Line2D((0.12, 0.12), (.1, .9), color="k", linewidth=2)
+        fig.add_artist(line)
+        line = plt.Line2D((0.91, 0.91), (.1, .9), color="k", linewidth=2)
+        fig.add_artist(line)
+        line = plt.Line2D((.275, .275), (.1, .9), color="k", linewidth=2)
+        fig.add_artist(line)
+        line = plt.Line2D((.4325, .4325), (.1, .9), color="k", linewidth=2)
+        fig.add_artist(line)
+        line = plt.Line2D((.595, .595), (.1, .9), color="k", linewidth=2)
+        fig.add_artist(line)
+        line = plt.Line2D((.7575, .7575), (.1, .9), color="k", linewidth=2)
+        fig.add_artist(line)
+        for phase in range(0, len(phases), 2):
+            print("Starting Phase {}".format(phase))
+            encoder, _ = load_autoencoder(experiment, phases[phase])
+            original = {lattice_id: convert_to_integer(lattice) for (lattice_id, lattice) in enumerate(phases[phase])}
+            if experiment[-3:] == 'DAE':
+                compressed = {lattice_id: encoder.predict(add_noise(lattice)[None])[0]  for (lattice_id, lattice) in enumerate(phases[phase])}
+            else:
+                compressed = {lattice_id: encoder.predict(lattice[None])[0] for (lattice_id, lattice) in enumerate(phases[phase])}
+
+            fitnesses = {}
+            jobs = []
+            for key in compressed.keys():
+                parameters = (key, compressed, {})
+                jobs.append(pool.apply_async(novelty_search, parameters))
+            for job, genome_id in zip(jobs, compressed.keys()):
+                 fitnesses.update({genome_id: job.get()})
+
+            fitnesses = {id: novelty_search(id, compressed, {}) for id in compressed.keys()}
+            sorted_keys = [k for k, _ in sorted(fitnesses.items(), key=lambda item: item[1])]
+            for number, plot in enumerate(np.linspace(len(sorted_keys) - 1, 0, 5, dtype=int)):
+                ax = fig.add_subplot(subplots[int(phase / 2)][number][0], subplots[int(phase / 2)][number][1], subplots[int(phase / 2)][number][2], projection='3d')
+                ax.voxels(original[plot], edgecolor="k", facecolors=get_color_map(original[plot], 'blue'))
+                ax.set_axis_off()
+                if phase == 0:
+                    ax.text(-37, 0, -5, s=xlabels[number], fontsize=15)
+                if number == 4:
+                    ax.text(5, 3, -40, s='Phase {}'.format(phase), fontsize=15)
+        fig.show()
+
+
+def expressive_analysis(labels, metric1, metric2):
+    for experiment in labels:
+        phases = load_training_set(experiment)
+
+
 if __name__ == '__main__':
 
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
 
+    pool = Pool(process_count)
     labels = ["Static AE", "Random AE",
               "Full History AE", "Full History DAE",
               "Latest Set AE", "Latest Set DAE",
@@ -198,8 +270,17 @@ if __name__ == '__main__':
     colors = ['black', 'red', 'blue', 'green', 'brown', 'orange', 'purple', 'cyan']
     keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
 
+    novelty_spectrum(labels)
+    # novelty_spectrum(labels)
+
+    # for key in keys:
+        # grid_plot(labels, neat_metric, key, key)
+
     # pca, pca_pop = pca_population(labels)
     # grid_plot(labels, pca_graph, "Diversity of Populations' Principle Components", args=(pca, pca_pop))
 
-    test_pop = test_population(labels)
-    grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=test_pop)
+    # test_pop = test_population(labels)
+    # grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=test_pop)
+
+    pool.close()
+    pool.join()

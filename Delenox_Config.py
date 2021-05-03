@@ -47,3 +47,4 @@ config_path = os.path.join(local_dir, 'neat.cfg')
 config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet,
                      neat.DefaultStagnation, config_path)
 config.genome_config.add_activation('sin_adjusted', sinc)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
