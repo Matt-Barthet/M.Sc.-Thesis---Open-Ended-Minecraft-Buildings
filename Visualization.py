@@ -2,7 +2,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 from Delenox_Config import current_run, runs_per_phase
-from mpl_toolkits.mplot3d import axes3d, Axes3D #<-- Note the capitalization!
+from mpl_toolkits.mplot3d import axes3d, Axes3D
 
 
 def plot_statistics(values, confidence, key, phase):
@@ -53,32 +53,29 @@ def expressive_graph(x, y, title, x_label, y_label):
     plt.title(title)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
-    pops = plt.imshow(histogram, interpolation='nearest', origin='low', aspect='auto',
-                      extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]], cmap=plt.cm.get_cmap("gray"))
+    pops = plt.imshow(histogram, interpolation='nearest', origin='lower', aspect='auto',
+                      extent=[0, 25, 0, 12], cmap=plt.cm.get_cmap("gray"))
+    plt.xticks([0, 5, 10, 15, 20, 25])
+    plt.yticks([0, 2, 4, 6, 8, 10, 12])
     fig.colorbar(pops, label="Building Frequency")
-    plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Clustering_"+str(time.time())+".png")
     plt.show()
 
 
 def auto_encoder_plot(example, code, reconstruction, error, title=""):
-
     fig = plt.figure(figsize=plt.figaspect(2.25))
     fig.suptitle(title)
     ax = fig.add_subplot(3, 1, 1, projection='3d')
     ax.set_title("Original Lattice")
     ax = fig.gca(projection='3d')
     ax.voxels(example, edgecolor="k", facecolors=get_color_map(example))
-
     ax = fig.add_subplot(3, 1, 2)
     im = ax.imshow(np.array([code] * 15))
     ax.axes.get_yaxis().set_visible(False)
     ax.set_title("Compressed Representation - " + str(len(code)) + " bits")
-
     ax = fig.add_subplot(3, 1, 3, projection='3d')
     ax.set_title("Reconstructed Lattice - Error: " + str(error) + "%")
     ax = fig.gca(projection='3d')
     ax.voxels(reconstruction, edgecolor="k", facecolors=get_color_map(reconstruction))
-    # plt.savefig("./Delenox_Experiment_Data/Run"+str(current_run)+"/Autoencoder_"+str(time.time())+".png")
     plt.show()
 
 

@@ -9,7 +9,7 @@ from scipy.stats import entropy
 from sklearn.decomposition import PCA
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Autoencoder import load_model, convert_to_integer, calculate_error, add_noise
-from Visualization import voxel_plot, auto_encoder_plot, get_color_map
+from Visualization import voxel_plot, auto_encoder_plot, get_color_map, expressive_graph
 from Delenox_Config import value_range
 from Constraints import *
 from NeatGenerator import novelty_search
@@ -19,6 +19,7 @@ flatten = itertools.chain.from_iterable
 
 locations = [(0, 0), (0, 1), (1, 0), (1, 1)]
 pca_locs = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (1, 0), (1, 1), (1, 2), (1, 3), (1, 4)]
+novelty_spectrum_subplots = [[(5, 5, index * 5 + offset) for index in range(5)] for offset in range(1, 6)]
 ae_label = ['Vanilla AE', 'De-Noising AE']
 process_count = 16
 
@@ -36,6 +37,7 @@ def load_metric(label, metric):
         return np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npy".format(label, 9), allow_pickle=True).item()[metric]
     except FileNotFoundError:
         return np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npz".format(label, 9), allow_pickle=True)['arr_0'].item()[metric]
+
 
 def load_metrics(labels, metric):
     return [np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npy".format(directory, 9), allow_pickle=True)[metric] for directory in labels]
@@ -143,15 +145,16 @@ def pca_population(experiments):
     return pca, pca_pop
 
 
-def pca_graph(experiment, args=None):
+def pca_graph(experiment, args=None, shareAxes=True):
     """
 
+    :param shareAxes:
     :param experiment:
     :param args:
     :return:
     """
-    fig, axes = plt.subplots(nrows=2, ncols=5, figsize=(12, 7), sharex=True, sharey=True)
     print("PCA Scatter Plots - {}".format(experiment))
+    fig, axes = plt.subplots(nrows=2, ncols=5, figsize=(12, 7), sharex=shareAxes, sharey=shareAxes)
     fig.suptitle("PCA Scatter Plots - {}".format(experiment))
     experiment_population = args[0][1][args[1]]
     diversity = []
@@ -168,7 +171,6 @@ def pca_graph(experiment, args=None):
     return np.asarray([np.mean(diversity1) for diversity1 in diversity]), np.asarray([np.std(diversity1) / np.sqrt(len(diversity1)) * 1.96 for diversity1 in diversity])
 
 
-# TODO: Modular version of the NEAT metrics visualizations for grid_plot
 def neat_metric(experiment, metric):
     metric = np.asarray(load_metric(experiment, metric[0]))
     if metric.shape == (10, 1000):
@@ -179,8 +181,8 @@ def neat_metric(experiment, metric):
     return mean, ci
 
 
-def grid_plot(experiments, function, title, args=None):
-    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 9), sharex=True, sharey=True)
+def grid_plot(experiments, function, title, args=None, shareAxes=True):
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 9), sharex=shareAxes, sharey=shareAxes)
     fig.suptitle("{} over {:d} Runs.".format(title, 10))
     baseline_means, baseline_ci = function(experiments[0], (args, 0))
     counter = 0
@@ -203,7 +205,6 @@ def grid_plot(experiments, function, title, args=None):
 
 
 def novelty_spectrum(labels):
-    subplots = [[(5, 5, index * 5 + offset) for index in range(5)] for offset in range(1, 6)]
     xlabels = ['Most\nNovel', 'Upper\nQuartile', 'Median\nNovel', 'Lower\nQuartile', 'Least\nNovel']
     for experiment in labels:
         print("Starting Experiment {}".format(experiment))
@@ -231,18 +232,18 @@ def novelty_spectrum(labels):
             else:
                 compressed = {lattice_id: encoder.predict(lattice[None])[0] for (lattice_id, lattice) in enumerate(phases[phase])}
 
-            fitnesses = {}
+            fitness = {}
             jobs = []
             for key in compressed.keys():
                 parameters = (key, compressed, {})
                 jobs.append(pool.apply_async(novelty_search, parameters))
             for job, genome_id in zip(jobs, compressed.keys()):
-                 fitnesses.update({genome_id: job.get()})
+                 fitness.update({genome_id: job.get()})
 
-            fitnesses = {id: novelty_search(id, compressed, {}) for id in compressed.keys()}
-            sorted_keys = [k for k, _ in sorted(fitnesses.items(), key=lambda item: item[1])]
+            fitness = {id: novelty_search(id, compressed, {}) for id in compressed.keys()}
+            sorted_keys = [k for k, _ in sorted(fitness.items(), key=lambda item: item[1])]
             for number, plot in enumerate(np.linspace(len(sorted_keys) - 1, 0, 5, dtype=int)):
-                ax = fig.add_subplot(subplots[int(phase / 2)][number][0], subplots[int(phase / 2)][number][1], subplots[int(phase / 2)][number][2], projection='3d')
+                ax = fig.add_subplot(novelty_spectrum_subplots[int(phase / 2)][number][0], novelty_spectrum_subplots[int(phase / 2)][number][1], novelty_spectrum_subplots[int(phase / 2)][number][2], projection='3d')
                 ax.voxels(original[plot], edgecolor="k", facecolors=get_color_map(original[plot], 'blue'))
                 ax.set_axis_off()
                 if phase == 0:
@@ -252,13 +253,57 @@ def novelty_spectrum(labels):
         fig.show()
 
 
-def expressive_analysis(labels, metric1, metric2):
-    for experiment in labels:
-        phases = load_training_set(experiment)
+def expressive_analysis(experiments):
+    """
 
+    :param experiments:
+    :param metric1:
+    :param metric2:
+    :return:
+    """
+    for experiment in experiments:
+        phases = load_training_set(experiment)
+        counter = 0
+        for phase in [phases[0], phases[-1]]:
+            surface_areas = []
+            stabilities = []
+
+            converted = [convert_to_integer(lattice) for lattice in phase]
+
+            print("Starting Analysis")
+            for lattice in converted:
+                horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
+                width = (horizontal_bounds[1] - horizontal_bounds[0])
+                height = vertical_bounds[1]
+                depth = (depth_bounds[1] - depth_bounds[0])
+                lattice_stability, floor_stability = stability(lattice)
+                stabilities.append(floor_stability)
+                roof_count = 0
+                walls = 0
+                floor_count = 0
+                interior_count = 0
+                total_count = 0
+                for (x, y, z) in value_range:
+                    if lattice[x][y][z] == 0:
+                        continue
+                    total_count += 1
+                    if lattice[x][y][z] == 1:
+                        interior_count += 1
+                    elif lattice[x][y][z] == 2:
+                        walls += 1
+                    elif lattice[x][y][z] == 4:
+                        roof_count += 1
+                    elif lattice[x][y][z] == 3:
+                        floor_count += 1
+                surface_areas.append((walls + roof_count + floor_count) / (2 * (width + depth + height)))
+
+            print("Plotting Expressive Graph")
+            expressive_graph(surface_areas, stabilities, "Expressive Analysis - {}: Phase {}".format(experiment, counter), "Surface Area / Bounding Box Area", "Lateral Stability")
+            counter += 10
 
 if __name__ == '__main__':
 
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
 
@@ -270,17 +315,12 @@ if __name__ == '__main__':
     colors = ['black', 'red', 'blue', 'green', 'brown', 'orange', 'purple', 'cyan']
     keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
 
-    novelty_spectrum(labels)
-    # novelty_spectrum(labels)
-
     # for key in keys:
         # grid_plot(labels, neat_metric, key, key)
-
-    # pca, pca_pop = pca_population(labels)
-    # grid_plot(labels, pca_graph, "Diversity of Populations' Principle Components", args=(pca, pca_pop))
-
-    # test_pop = test_population(labels)
-    # grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=test_pop)
+    # grid_plot(labels, pca_graph, "Diversity of Populations' Principle Components", args=(pca_population(labels)))
+    # grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=test_population(labels))
+    # expressive_analysis(labels)
+    # novelty_spectrum(labels)
 
     pool.close()
     pool.join()
