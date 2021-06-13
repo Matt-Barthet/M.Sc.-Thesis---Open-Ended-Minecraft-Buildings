@@ -1,5 +1,6 @@
 import itertools
 import random
+import os
 from multiprocessing import Pool
 import matplotlib.pyplot as plt
 import numpy as np
@@ -314,6 +315,15 @@ if __name__ == '__main__':
               "Novelty Archive AE", "Novelty Archive DAE"]
     colors = ['black', 'red', 'blue', 'green', 'brown', 'orange', 'purple', 'cyan']
     keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
+
+    pop = load_training_set(labels[2])
+    encoder, decoder = load_autoencoder(labels[2], 9)
+
+    for i in range(30, len(pop[-1])):
+        lattice = pop[-1][i]
+        compressed = encoder.predict(lattice[None])[0]
+        reco = decoder.predict(compressed[None])[0]
+        auto_encoder_plot(lattice, compressed, reco, calculate_error(lattice, reco))
 
     # for key in keys:
         # grid_plot(labels, neat_metric, key, key)

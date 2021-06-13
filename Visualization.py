@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from Delenox_Config import current_run, runs_per_phase
 from mpl_toolkits.mplot3d import axes3d, Axes3D
-
+from Delenox_Config import lattice_dimensions
 
 def plot_statistics(values, confidence, key, phase):
     plt.figure()
@@ -60,6 +60,20 @@ def expressive_graph(x, y, title, x_label, y_label):
     fig.colorbar(pops, label="Building Frequency")
     plt.show()
 
+def convert_to_integer(lattice):
+    """
+    Convert material lattice from one-hot representation to integer encoding representation.
+
+    :param lattice: lattice of one-hot material vectors.
+    :return: lattice of integer material codes.
+    """
+    integer_reconstruct = np.zeros(lattice_dimensions)
+    for channel in range(20):
+        for row in range(20):
+            integer_reconstruct[channel][row] = np.argmax(lattice[channel][row], axis=1)
+    return integer_reconstruct
+
+
 
 def auto_encoder_plot(example, code, reconstruction, error, title=""):
     fig = plt.figure(figsize=plt.figaspect(2.25))
@@ -67,7 +81,7 @@ def auto_encoder_plot(example, code, reconstruction, error, title=""):
     ax = fig.add_subplot(3, 1, 1, projection='3d')
     ax.set_title("Original Lattice")
     ax = fig.gca(projection='3d')
-    ax.voxels(example, edgecolor="k", facecolors=get_color_map(example))
+    ax.voxels(convert_to_integer(example), edgecolor="k", facecolors=get_color_map(convert_to_integer(example)))
     ax = fig.add_subplot(3, 1, 2)
     im = ax.imshow(np.array([code] * 15))
     ax.axes.get_yaxis().set_visible(False)
@@ -75,7 +89,7 @@ def auto_encoder_plot(example, code, reconstruction, error, title=""):
     ax = fig.add_subplot(3, 1, 3, projection='3d')
     ax.set_title("Reconstructed Lattice - Error: " + str(error) + "%")
     ax = fig.gca(projection='3d')
-    ax.voxels(reconstruction, edgecolor="k", facecolors=get_color_map(reconstruction))
+    ax.voxels(convert_to_integer(reconstruction), edgecolor="k", facecolors=get_color_map(convert_to_integer(reconstruction)))
     plt.show()
 
 
@@ -93,9 +107,9 @@ def plot_fitness(averages, stdev, generation_count, title, label=None):
 
 def get_color_map(lattice, color_one='blue'):
     color = np.empty(lattice.shape, dtype=object)
-    for i in range(0, lattice.shape[0]):
-        for j in range(0, lattice.shape[1]):
-            for k in range(0, lattice.shape[2]):
+    for i in range(0, color.shape[0]):
+        for j in range(0, color.shape[1]):
+            for k in range(0, color.shape[2]):
                 if lattice[i][j][k] == 1:
                     color[i][j][k] = color_one
                 elif lattice[i][j][k] == 2:
