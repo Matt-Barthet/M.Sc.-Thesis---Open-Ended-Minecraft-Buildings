@@ -8,7 +8,7 @@ if __name__ == '__main__':
 
     static = False
     noisy = False
-    experiment = "Retrained AE - Novelty Archive"
+    experiment = "Full History AE"
 
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
         os.makedirs('Delenox_Experiment_Data/{}'.format(experiment))
@@ -75,14 +75,14 @@ if __name__ == '__main__':
                 training_history += list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, rewind))['arr_0'])
 
             if noisy:
-                noisy_population = add_noise_parallel(np.asarray(training_population))
+                noisy_population = add_noise_parallel(np.asarray(training_history))
             else:
                 noisy_population = None
 
             ae, encoder, decoder = create_auto_encoder(model_type=auto_encoder_3d,
                                                        phase=phase,
                                                        experiment=experiment,
-                                                       population=np.asarray(training_population),
+                                                       population=np.asarray(training_history),
                                                        noisy=noisy_population
                                                        )
         plt.close('all')

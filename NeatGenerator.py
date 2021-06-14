@@ -88,8 +88,8 @@ class NeatGenerator:
         self.encoder = None
         self.decoder = None
 
-        # return self, self.phase_best_fit, self.neat_metrics
-        return self, self.archive_lattices, self.neat_metrics
+        return self, self.phase_best_fit, self.neat_metrics
+        # return self, self.archive_lattices, self.neat_metrics
 
     def run_one_generation(self, genomes, config):
         """
@@ -177,7 +177,10 @@ class NeatGenerator:
         print("Average Hidden Layer Size: {:2.2f}".format(node_complexity))
         print("Average Connection Count: {:2.2f}".format(connection_complexity))
         print("Size of the Novelty Archive: {:d}".format(len(self.archive)))
-        print("Number of Infeasible Buildings:", remove, "\n")
+        print("Number of Infeasible Buildings:", remove)
+        print("Number of Species:", len(self.population.species.species))
+        print("Max Novelty:", fitness[sorted_keys[-1]])
+        print("Mean Novelty:", np.mean(list(fitness.values())), "\n")
 
         self.current_gen += 1
 
@@ -213,6 +216,7 @@ def novelty_search(genome_id, compressed_population, archive):
         for element in range(len(neighbour)):
             distance += np.square(compressed_population[genome_id][element] - neighbour[element])
         distances.append(np.sqrt(distance))
+    distances = np.sort(distances)[1:]
     return np.round(np.average(distances[:k_nearest_neighbors]), 2)
 
 

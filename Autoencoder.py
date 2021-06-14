@@ -303,7 +303,6 @@ def calculate_error(original, reconstruction):
     """
     error = 0
     for (x, y, z) in value_range:
-        print(np.asarray(original[x][y][z], dtype=int), reconstruction[x][y][z], np.argmax(original[x][y][z]) != np.argmax(reconstruction[x][y][z]))
         if np.argmax(original[x][y][z]) != np.argmax(reconstruction[x][y][z]):
             error += 1
     return round(error / (lattice_dimensions[0] ** 3) * 100, 2)
