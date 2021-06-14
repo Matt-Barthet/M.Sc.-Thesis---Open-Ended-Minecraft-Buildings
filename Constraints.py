@@ -7,8 +7,8 @@ from Visualization import voxel_plot
 materials = {'External_Space': 0, 'Interior_Space': 1, 'Wall': 2, 'Floor': 3, 'Roof': 4}
 
 door_frames_ew = [
+    np.array([[[3, 2, 2, 2], [3, 2, 2, 2], [3, 2, 2, 2]], [[3, 1, 1, 1], [3, 1, 1, 1], [3, 1, 1, 1]]]),
     np.array([[[3, 1, 1, 1], [3, 1, 1, 1], [3, 1, 1, 1]], [[3, 2, 2, 2], [3, 2, 2, 2], [3, 2, 2, 2]]]),
-    np.array([[[3, 2, 2, 2], [3, 2, 2, 2], [3, 2, 2, 2]], [[3, 1, 1, 1], [3, 1, 1, 1], [3, 1, 1, 1]]])
 ]
 
 door_frames_ns = [
@@ -55,7 +55,7 @@ def apply_constraints(lattice):
     try:
         lattice = iterative_flood(lattice)
         lattice = identify_materials(lattice)
-        assess_quality(lattice)
+        lattice = assess_quality(lattice)
         return True, lattice
     except InfeasibleError:
         return False, lattice
@@ -86,8 +86,14 @@ def assess_quality(lattice):
 
     try:
         total_count = np.sum(lattice)
-        if total_count == 0 or total_count == lattice_dimensions[0] ** 3:
+        if total_count == 0:
             raise InfeasibleVoxelCount
+
+        lattice, entrance = place_entrance(lattice)
+        if not entrance:
+            raise InfeasibleEntrance
+
+        return lattice
 
         """horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
         width = (horizontal_bounds[1] - horizontal_bounds[0])
@@ -109,10 +115,7 @@ def assess_quality(lattice):
         lattice_stability, floor_stability = stability(lattice)
         if floor_stability > 6:
             raise InfeasibleLateralStability
-
-        lattice, entrance = place_entrance(lattice)
-        if not entrance:
-            raise InfeasibleEntrance"""
+        """
 
     except InfeasibleVoxelCount:
         raise InfeasibleError

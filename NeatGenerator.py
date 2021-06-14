@@ -104,7 +104,6 @@ class NeatGenerator:
         compressed_population = {}
         lattices = {}
         remove = 0
-
         jobs = []
 
         for genome_id, genome in genomes:
