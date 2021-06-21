@@ -7,8 +7,8 @@ from NeatGenerator import NeatGenerator
 if __name__ == '__main__':
 
     static = False
-    noisy = False
-    experiment = "Full History AE"
+    noisy = True
+    experiment = "Novelty Archive DAE"
 
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
         os.makedirs('Delenox_Experiment_Data/{}'.format(experiment))
@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
         if not static and not os.path.exists('Delenox_Experiment_Data/{}/Phase{:d}/encoder.json'.format(experiment, phase)):
             training_history = []
-            for rewind in range(phase + 1):
+            for rewind in range(phase, phase + 1):
                 training_history += list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, rewind))['arr_0'])
 
             if noisy:

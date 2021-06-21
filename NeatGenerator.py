@@ -47,7 +47,7 @@ class NeatGenerator:
         """
         # Check to see if we should clear the novelty archive before starting the next phase.
         if not persistent_archive:
-            self.archive.clear()
+            self.archive = []
             self.archive_lattices.clear()
 
         # Re-initialize phase variables accordingly
@@ -72,6 +72,18 @@ class NeatGenerator:
                 self.encoder = load_model("./Delenox_Experiment_Data/Seed/encoder_noisy")
                 self.decoder = load_model("./Delenox_Experiment_Data/Seed/decoder_noisy")
 
+        # Update the archive of latent vectors with the current encoder's interpretation of the lattices
+        print("Updating Archive with New Encoder")
+        try:
+            self.archive = list(self.archive.values())
+        except:
+            self.archive.clear()
+
+        """
+        self.archive = []
+        for lattice in self.archive_lattices:
+            self.archive.append(self.encoder.predict(lattice[None])[0])"""
+
         # Initialize the processes used for the NEAT run and execute the phase.
         self.pool = Pool(thread_count)
         self.population.run(self.run_one_generation, generations_per_run)
@@ -88,8 +100,8 @@ class NeatGenerator:
         self.encoder = None
         self.decoder = None
 
-        return self, self.phase_best_fit, self.neat_metrics
-        # return self, self.archive_lattices, self.neat_metrics
+        # return self, self.phase_best_fit, self.neat_metrics
+        return self, self.archive_lattices, self.neat_metrics
 
     def run_one_generation(self, genomes, config):
         """
@@ -138,8 +150,8 @@ class NeatGenerator:
             lattice = lattices[sorted_keys[-individual]]
             self.archive_lattices.append(lattice)
             vector = self.encoder.predict(lattice[None])[0]
-            if len(self.archive) == 0 or not (vector == list(self.archive.values())).all(1).any():
-                self.archive.update({sorted_keys[-individual]: vector})
+            if len(self.archive) == 0 or not (vector == self.archive).all(1).any():
+                self.archive.append(vector)
 
         if self.current_gen % 100 == 0 or self.current_gen + 1 == generations_per_run:
             most_novel_lattice = lattices[sorted_keys[-1]]
@@ -210,7 +222,7 @@ def novelty_search(genome_id, compressed_population, archive):
     :return: the novelty score for this genome.
     """
     distances = []
-    for neighbour in list(compressed_population.values()) + list(archive.values()):
+    for neighbour in list(compressed_population.values()) + archive:
         distance = 0
         for element in range(len(neighbour)):
             distance += np.square(compressed_population[genome_id][element] - neighbour[element])

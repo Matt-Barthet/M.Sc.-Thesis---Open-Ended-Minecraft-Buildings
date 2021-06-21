@@ -17,6 +17,11 @@ door_frames_ns = [
 ]
 
 
+if __name__ == "__main__":
+    voxel_plot(door_frames_ns[0], "")
+    voxel_plot(door_frames_ew[1], "")
+
+
 class InfeasibleError(Exception):
     pass
 
