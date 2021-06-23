@@ -118,12 +118,19 @@ def test_population(experiments):
     :return:
     """
     test_pop = []
-    for experiment in experiments:
+    test_pop += list(np.load("Real-World Datasets/Ahousev5_Buildings_Fixed.npy", allow_pickle=True))
+    test_pop += list(np.load("Real-World Datasets/Ahousev5_Buildings_Varied.npy", allow_pickle=True))
+
+    encoded_pop = []
+    for individual in test_pop:
+        encoded_pop.append(to_categorical(individual, num_classes=5))
+
+    """for experiment in experiments:
         populations = load_training_set(experiment)
         for population in populations:
             for building in random.sample(population, 30):
-                test_pop.append(building)
-    return test_pop
+                test_pop.append(building)"""
+    return encoded_pop
 
 
 def reconstruction_accuracy(experiment, args):
@@ -135,6 +142,7 @@ def reconstruction_accuracy(experiment, args):
     """
     means = []
     cis = []
+
     for phase in range(10):
         print("Loading Autoencoder from Phase {}".format(phase))
         try:
@@ -144,9 +152,10 @@ def reconstruction_accuracy(experiment, args):
                 "Delenox_Experiment_Data/{}/Phase{}/decoder".format(experiment, phase))
         except FileNotFoundError:
             encoder = load_model(
-                "Delenox_Experiment_Data/{}/Phase{}/encoder".format(experiment, 0))
+                "Delenox_Experiment_Data/Seed/encoder")
             decoder = load_model(
-                "Delenox_Experiment_Data/{}/Phase{}/decoder".format(experiment, 0))
+                "Delenox_Experiment_Data/Seed/decoder")
+
         errors = []
         for lattice in args[0]:
             if experiment[-3:] == 'DAE':
@@ -155,8 +164,17 @@ def reconstruction_accuracy(experiment, args):
                 compressed = encoder.predict(lattice[None])[0]
             reconstructed = decoder.predict(compressed[None])[0]
             errors.append(calculate_error(lattice, reconstructed))
-        means.append(np.mean(errors))
-        cis.append(np.std(errors) / np.sqrt(len(errors)) * 1.96)
+
+        if experiment == "Static AE":
+            means = np.asarray([np.mean(errors) for _ in range(10)])
+            cis = np.asarray([np.std(errors) / np.sqrt(len(errors)) * 1.96 for _ in range(10)])
+            diversity_dict.update({experiment: [means, cis]})
+            return means, cis
+        else:
+            means.append(np.mean(errors))
+            cis.append(np.std(errors) / np.sqrt(len(errors)) * 1.96)
+
+    diversity_dict.update({experiment: [means, cis]})
     return np.asarray(means), np.asarray(cis)
 
 
@@ -240,24 +258,21 @@ def grid_plot(experiments, function, title, dict, args=None, shareAxes=True):
 
     counter = 0
     for experiment in [(1,), (2, 3), (4, 5), (6, 7)]:
-        try:
-            axis = axes[locations[counter][0]][locations[counter][1]]
-            axis.errorbar(x=range(len(baseline_means)), y=baseline_means, label=labels[0], color=colors[0])
-            axis.fill_between(x=range(len(baseline_means)), y1=baseline_means + baseline_ci,
-                              y2=baseline_means - baseline_ci, color=colors[0], alpha=0.1)
-            axis.set_title(labels[experiment[0]][:-3] + " Autoencoders", fontsize=12)
-            for sub in range(len(experiment)):
-                try:
-                    [means, ci] = dict[labels[experiment[sub]]]
-                    print("{} data found!".format(labels[experiment[sub]]))
-                except:
-                    print("No data found for {}, calculating new points".format(labels[experiment[sub]]))
-                    means, ci = function(experiments[experiment[sub]], (args, experiment[sub]))
-                axis.errorbar(x=range(len(means)), y=means, label=ae_label[sub], color=colors[sub + 1])
-                axis.fill_between(x=range(len(means)), y1=means + ci, y2=means - ci, color=colors[sub + 1], alpha=0.1)
-            axis.grid()
-        except:
-            pass
+        axis = axes[locations[counter][0]][locations[counter][1]]
+        axis.errorbar(x=range(len(baseline_means)), y=baseline_means, label=labels[0], color=colors[0])
+        axis.fill_between(x=range(len(baseline_means)), y1=baseline_means + baseline_ci,
+                          y2=baseline_means - baseline_ci, color=colors[0], alpha=0.1)
+        axis.set_title(labels[experiment[0]][:-3] + " Autoencoders", fontsize=12)
+        for sub in range(len(experiment)):
+            try:
+                [means, ci] = dict[labels[experiment[sub]]]
+                print("{} data found!".format(labels[experiment[sub]]))
+            except:
+                print("No data found for {}, calculating new points".format(labels[experiment[sub]]))
+                means, ci = function(experiments[experiment[sub]], (args, experiment[sub]))
+            axis.errorbar(x=range(len(means)), y=means, label=ae_label[sub], color=colors[sub + 1])
+            axis.fill_between(x=range(len(means)), y1=means + ci, y2=means - ci, color=colors[sub + 1], alpha=0.1)
+        axis.grid()
         counter += 1
 
         handles, legendlabels = axis.get_legend_handles_labels()
@@ -432,15 +447,17 @@ if __name__ == '__main__':
     # expressive_analysis(labels, "Surface Area", "Symmetry")
     # expressive_analysis(labels, "Surface Area", "Instability")
 
-    diversity_dict = np.load("Diversities_Total.npy", allow_pickle=True).item()
+    diversity_dict = np.load("Reconstruction.npy", allow_pickle=True)
+    grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", dict=diversity_dict, args=test_population(labels), shareAxes=False)
+    np.save("Reconstruction.npy", diversity_dict)
+
+    diversity_dict = np.load("Diversities_K.npy", allow_pickle=True).item()
     grid_plot(labels, lattice_diversity, "Diversity", shareAxes=True, dict=diversity_dict)
     np.save("Diversities_Total.npy", diversity_dict)
 
-    diversity_dict = {}
+    diversity_dict = np.load("Human_Diversity.npy", allow_pickle=True).item()
     grid_plot(labels, diversity_from_humans, "Entropy", shareAxes=True, dict=diversity_dict)
-    np.save("human_diversity.npy", diversity_dict)
-
-    # grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=test_population(labels), shareAxes=False)
+    np.save("Human_Diversity.npy", diversity_dict)
     novelty_spectrum(labels)
 
     pool.close()
