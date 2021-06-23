@@ -4,14 +4,12 @@ import tensorflow as tf
 import neat
 import pickle
 
-
 def sinc(x):
     x = max(-60.0, min(60.0, 5.0 * x))
     return (np.sin(x) + 1) / 2
 
-
 # General Parameters
-thread_count = 16
+thread_count = 12
 number_of_phases = 10
 
 # Parameters for input space of un/compressed buildings
@@ -35,7 +33,7 @@ current_run = 0
 
 # Parameters for constrained novelty search in the NEAT module
 k_nearest_neighbors = 20
-add_to_archive = 3
+add_to_archive = 1
 
 # Parameters for evolutionary algorithm using latent vector space
 latent_mutation_rate = 0.1

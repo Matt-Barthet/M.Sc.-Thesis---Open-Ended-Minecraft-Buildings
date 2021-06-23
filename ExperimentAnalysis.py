@@ -27,93 +27,87 @@ process_count = 16
 
 def load_training_set(label):
     return [list(
-        np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Training_Set.npz".format(label, i),
+        np.load("Delenox_Experiment_Data/{}/Phase{}/Training_Set.npz".format(label, i),
                 allow_pickle=True)['arr_0'])[-1000:] for i in range(10)]
 
+def load_seed_set():
+    return list(np.load("Delenox_Experiment_Data/Seed/Initial_Training_Set.npy",
+                        allow_pickle=True))
 
 def load_populations(label):
     return [[list(
-        np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Population_{}.npz".format(label, j, i),
+        np.load("Delenox_Experiment_Data/{}/Phase{}/Population_{}.npz".format(label, j, i),
                 allow_pickle=True)['arr_0'].item().values()) for i in range(10)] for j in range(10)]
-
 
 def load_metric(label, metric):
     try:
-        return np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npy".format(label, 9),
+        return np.load("Delenox_Experiment_Data/{}/Phase{}/Metrics.npy".format(label, 9),
                        allow_pickle=True).item()[metric]
     except FileNotFoundError:
-        return np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npz".format(label, 9),
+        return np.load("Delenox_Experiment_Data/{}/Phase{}/Metrics.npz".format(label, 9),
                        allow_pickle=True)['arr_0'].item()[metric]
 
-
 def load_metrics(labels, metric):
-    return [np.load("Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/Metrics.npy".format(directory, 9),
+    return [np.load("Delenox_Experiment_Data/{}/Phase{}/Metrics.npy".format(directory, 9),
                     allow_pickle=True)[metric] for directory in labels]
-
 
 def load_autoencoder(label, phase):
     try:
         encoder = load_model(
-            "Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/encoder".format(label, phase))
+            "Delenox_Experiment_Data/{}/Phase{}/encoder".format(label, phase))
         decoder = load_model(
-            "Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/decoder".format(label, phase))
+            "Delenox_Experiment_Data/{}/Phase{}/decoder".format(label, phase))
     except FileNotFoundError:
+        print("File not found")
         encoder = load_model(
-            "Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/encoder".format(label, 0))
+            "Delenox_Experiment_Data/{}/Phase{}/encoder".format(label, 0))
         decoder = load_model(
-            "Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/decoder".format(label, 0))
+            "Delenox_Experiment_Data/{}/Phase{}/decoder".format(label, 0))
     return encoder, decoder
 
-
 def vector_entropy(vector1, population):
-    return np.mean([entropy(vector1, neighbour) for neighbour in population])
+    entropies = []
+    for neighbour in population:
+        entropies.append(entropy(vector1, neighbour))
+    return np.mean(np.sort(entropies)[:15])
 
 
 def lattice_diversity(experiment, args=None):
-    """
-    Calculate the average population diversity for the given experiment using KL Divergence.
-    :param experiment: experiment label to load populations
-    :param args: unused - needed for modularity
-    :return: mean diversity for each phase and confidence intervals
-    """
     experiment_population = load_populations(experiment)
     experiment_diversity = []
     for phase in range(len(experiment_population)):
         phase_diversities = []
         for population in range(len(experiment_population[phase])):
             print("Starting Experiment {} - Phase {} - Population {}".format(experiment, phase, population))
-            lattices = [softmax(to_categorical(lattice).ravel()) for lattice in
-                        experiment_population[phase][population]]
+            lattices = [softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in experiment_population[phase][population]]
             results = [pool.apply_async(vector_entropy, (lattice, lattices)) for lattice in lattices]
             phase_diversities.append(np.mean([result.get() for result in results]))
         experiment_diversity.append(phase_diversities)
     experiment_diversity = np.stack(experiment_diversity, axis=1)
     means = np.mean(experiment_diversity, axis=1)
     ci = np.std(experiment_diversity, axis=1) / np.sqrt(10) * 1.96
+    diversity_dict.update({experiment: [means, ci]})
     return means, ci
 
 
 def diversity_from_humans(experiment, args=None):
-    """
-    Calculate the average population diversity for the given experiment using KL Divergence.
-    :param experiment: experiment label to load populations
-    :param args: unused - needed for modularity
-    :return: mean diversity for each phase and confidence intervals
-    """
     experiment_population = load_populations(experiment)
     human_population = np.load("Real-World Datasets/Ahousev5_Buildings_Varied.npy", allow_pickle=True)
+    targets = [softmax(to_categorical(lattice, num_classes=5).ravel()) for lattice in human_population]
     experiment_diversity = []
+
     for phase in range(len(experiment_population)):
         phase_diversities = []
         for population in range(len(experiment_population[phase])):
             print("Starting Experiment {} - Phase {} - Population {}".format(experiment, phase, population))
-            lattices = [softmax(to_categorical(lattice).ravel()) for lattice in experiment_population[phase][population]]
-            results = [pool.apply_async(vector_entropy, (lattice, lattices)) for lattice in lattices]
+            lattices = [softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in experiment_population[phase][population]]
+            results = [pool.apply_async(vector_entropy, (lattice, targets)) for lattice in lattices]
             phase_diversities.append(np.mean([result.get() for result in results]))
         experiment_diversity.append(phase_diversities)
     experiment_diversity = np.stack(experiment_diversity, axis=1)
     means = np.mean(experiment_diversity, axis=1)
     ci = np.std(experiment_diversity, axis=1) / np.sqrt(10) * 1.96
+    diversity_dict.update({experiment: [means, ci]})
     return means, ci
 
 
@@ -145,14 +139,14 @@ def reconstruction_accuracy(experiment, args):
         print("Loading Autoencoder from Phase {}".format(phase))
         try:
             encoder = load_model(
-                "Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/encoder".format(experiment, phase))
+                "Delenox_Experiment_Data/{}/Phase{}/encoder".format(experiment, phase))
             decoder = load_model(
-                "Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/decoder".format(experiment, phase))
+                "Delenox_Experiment_Data/{}/Phase{}/decoder".format(experiment, phase))
         except FileNotFoundError:
             encoder = load_model(
-                "Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/encoder".format(experiment, 0))
+                "Delenox_Experiment_Data/{}/Phase{}/encoder".format(experiment, 0))
             decoder = load_model(
-                "Delenox_Experiment_Data/Persistent Archive Tests/{}/Phase{}/decoder".format(experiment, 0))
+                "Delenox_Experiment_Data/{}/Phase{}/decoder".format(experiment, 0))
         errors = []
         for lattice in args[0]:
             if experiment[-3:] == 'DAE':
@@ -195,12 +189,20 @@ def pca_graph(experiment, args=None, shareAxes=True):
     diversity = []
     for training_set in range(len(experiment_population)):
         principal_components = args[0][0].transform(experiment_population[training_set])
-        diversity.append(np.asarray(
-            [np.mean([np.linalg.norm(pc - other) for other in principal_components]) for pc in principal_components]))
+
+        diversities = []
+        for pc in principal_components:
+            distances = []
+            for other in principal_components:
+                distances.append(np.linalg.norm(pc - other))
+            distances = np.sort(distances)[1:]
+            diversities.append(np.mean(distances[:15]))
+
         axis = axes[pca_locs[training_set][0]][pca_locs[training_set][1]]
         axis.set_title("Phase {}".format(training_set + 1),fontsize=12)
         axis.scatter([item[0] for item in principal_components], [item[1] for item in principal_components], s=7,
                      alpha=0.5, label="Phase {:d}".format(training_set + 1))
+
     plt.setp(axes[-1, :], xlabel='PC1')
     plt.setp(axes[:, 0], ylabel='PC2')
     fig.tight_layout()
@@ -224,21 +226,38 @@ def neat_metric(experiment, metric):
 plt.rc('axes', labelsize=12)
 
 
-def grid_plot(experiments, function, title, args=None, shareAxes=True):
+
+
+def grid_plot(experiments, function, title, dict, args=None, shareAxes=True):
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 6.5), sharex=shareAxes, sharey=shareAxes)
-    baseline_means, baseline_ci = function(experiments[0], (args, 0))
+
+    try:
+        [baseline_means, baseline_ci] = dict['Static AE']
+        print ("Static AE data found!")
+    except:
+        print ("No data found, calculating new points")
+        baseline_means, baseline_ci = function(experiments[0], (args, 0))
+
     counter = 0
     for experiment in [(1,), (2, 3), (4, 5), (6, 7)]:
-        axis = axes[locations[counter][0]][locations[counter][1]]
-        axis.errorbar(x=range(len(baseline_means)), y=baseline_means, label=labels[0], color=colors[0])
-        axis.fill_between(x=range(len(baseline_means)), y1=baseline_means + baseline_ci,
-                          y2=baseline_means - baseline_ci, color=colors[0], alpha=0.1)
-        axis.set_title(labels[experiment[0]][:-3] + " Autoencoders", fontsize=12)
-        for sub in range(len(experiment)):
-            means, ci = function(experiments[experiment[sub]], (args, experiment[sub]))
-            axis.errorbar(x=range(len(means)), y=means, label=ae_label[sub], color=colors[sub + 1])
-            axis.fill_between(x=range(len(means)), y1=means + ci, y2=means - ci, color=colors[sub + 1], alpha=0.1)
-        axis.grid()
+        try:
+            axis = axes[locations[counter][0]][locations[counter][1]]
+            axis.errorbar(x=range(len(baseline_means)), y=baseline_means, label=labels[0], color=colors[0])
+            axis.fill_between(x=range(len(baseline_means)), y1=baseline_means + baseline_ci,
+                              y2=baseline_means - baseline_ci, color=colors[0], alpha=0.1)
+            axis.set_title(labels[experiment[0]][:-3] + " Autoencoders", fontsize=12)
+            for sub in range(len(experiment)):
+                try:
+                    [means, ci] = dict[labels[experiment[sub]]]
+                    print("{} data found!".format(labels[experiment[sub]]))
+                except:
+                    print("No data found for {}, calculating new points".format(labels[experiment[sub]]))
+                    means, ci = function(experiments[experiment[sub]], (args, experiment[sub]))
+                axis.errorbar(x=range(len(means)), y=means, label=ae_label[sub], color=colors[sub + 1])
+                axis.fill_between(x=range(len(means)), y1=means + ci, y2=means - ci, color=colors[sub + 1], alpha=0.1)
+            axis.grid()
+        except:
+            pass
         counter += 1
 
         handles, legendlabels = axis.get_legend_handles_labels()
@@ -273,100 +292,123 @@ def novelty_spectrum(labels):
     xlabels = ['Most\nNovel', 'Upper\nQuartile', 'Median\nNovel', 'Lower\nQuartile', 'Least\nNovel']
     for experiment in labels:
         print("Starting Experiment {}".format(experiment))
-        phases = load_training_set(experiment)
-        fig = draw_lines_fig(plt.figure(figsize=(12, 12)))
-        fig.suptitle("Range of Generated Content - {}".format(experiment), fontsize=18)
 
-        for phase in range(1, len(phases), 2):
-            print("Starting Phase {}".format(phase))
-            encoder, _ = load_autoencoder(experiment, phases[phase])
+        for i in range(10):
+            # phases = load_training_set(experiment)
+            fig = draw_lines_fig(plt.figure(figsize=(12, 12)))
+            fig.suptitle("Range of Generated Content - {}".format(experiment), fontsize=18)
 
-            # phase_pop = random.sample(phases[phase], 250)
-            phase_pop = phases[phase]
+            phases = load_populations(experiment)
 
-            original = {lattice_id: convert_to_integer(lattice) for (lattice_id, lattice) in enumerate(phase_pop)}
+            for phase in range(1, len(phases), 2):
+                print("Starting Phase {}".format(phase))
+                encoder, _ = load_autoencoder(experiment, phase)
 
-            if experiment[-3:] == 'DAE':
-                compressed = {lattice_id: encoder.predict(add_noise(lattice)[None])[0] for (lattice_id, lattice) in
-                              enumerate(phases[phase])}
-            else:
-                compressed = {lattice_id: encoder.predict(lattice[None])[0] for (lattice_id, lattice) in
-                              enumerate(phases[phase])}
+                pop = phases[phase][i]
 
-            fitness = {}
-            jobs = []
-            for key in compressed.keys():
-                parameters = (key, compressed, {})
-                jobs.append(pool.apply_async(novelty_search, parameters))
-            for job, genome_id in zip(jobs, compressed.keys()):
-                fitness.update({genome_id: job.get()})
+                fitness = {}
+                original = {}
+                counter = 0
 
-            sorted_keys = [k for k, _ in sorted(fitness.items(), key=lambda item: item[1])]
+                compressed = {}
+                for lattice in pop:
+                    original.update({counter: convert_to_integer(lattice)})
+                    if experiment[-3:] == 'DAE':
+                        compressed.update({counter: encoder.predict(add_noise(lattice)[None])[0]})
+                    else:
+                        compressed.update({counter: encoder.predict(lattice[None])[0]})
+                    counter += 1
+                jobs = []
+                for key in compressed.keys():
+                    parameters = (key, compressed, {})
+                    jobs.append(pool.apply_async(novelty_search, parameters))
+                for job, genome_id in zip(jobs, compressed.keys()):
+                    fitness.update({genome_id: job.get()})
 
-            for number, plot in enumerate(np.linspace(len(sorted_keys) - 1, 0, 5, dtype=int)):
-                ax = fig.add_subplot(novelty_spectrum_subplots[int(phase / 2)][number][0],
-                                     novelty_spectrum_subplots[int(phase / 2)][number][1],
-                                     novelty_spectrum_subplots[int(phase / 2)][number][2], projection='3d')
+                sorted_keys = [k for k, _ in sorted(fitness.items(), key=lambda item: item[1])]
 
-                ax.voxels(original[sorted_keys[plot]], edgecolor="k", facecolors=get_color_map(original[sorted_keys[plot]], 'blue'))
-                ax.set_axis_off()
-                if phase == 1:
-                    ax.text(-37, 0, -5, s=xlabels[number], fontsize=15)
-                if number == 4:
-                    ax.text(5, 3, -40, s='Phase {}'.format(phase+1), fontsize=15)
-        fig.show()
+                for number, plot in enumerate(np.linspace(len(sorted_keys) - 1, 0, 5, dtype=int)):
+                    ax = fig.add_subplot(novelty_spectrum_subplots[int(phase / 2)][number][0],
+                                         novelty_spectrum_subplots[int(phase / 2)][number][1],
+                                         novelty_spectrum_subplots[int(phase / 2)][number][2], projection='3d')
+
+                    ax.voxels(original[sorted_keys[plot]], edgecolor="k", facecolors=get_color_map(original[sorted_keys[plot]], 'blue'))
+                    ax.set_axis_off()
+                    if phase == 1:
+                        ax.text(-37, 0, -5, s=xlabels[number], fontsize=15)
+                    if number == 4:
+                        ax.text(5, 3, -40, s='Phase {}'.format(phase+1), fontsize=15)
+            fig.show()
 
 
-def expressive_analysis(experiments):
-    """
+def symmetry(lattice, h_bound, v_bound, d_bound):
+    symmetry = 0
+    symmetry += height_symmetry(lattice, h_bound, v_bound, d_bound)
+    symmetry += width_symmetry(lattice, h_bound, v_bound, d_bound)
+    symmetry += depth_symmetry(lattice, h_bound, v_bound, d_bound)
+    return symmetry / 12000
 
-    :param experiments:
-    :param metric1:
-    :param metric2:
-    :return:
-    """
+def surface_ratio(lattice, h_bound, v_bound, d_bound):
+    width = (h_bound[1] - h_bound[0])
+    height = v_bound[1]
+    depth = (d_bound[1] - d_bound[0])
+
+    roof_count = 0
+    walls = 0
+    floor_count = 0
+    interior_count = 0
+    total_count = 0
+    for (x, y, z) in value_range:
+        if lattice[x][y][z] == 0:
+            continue
+        total_count += 1
+        if lattice[x][y][z] == 1:
+            interior_count += 1
+        elif lattice[x][y][z] == 2:
+            walls += 1
+        elif lattice[x][y][z] == 3:
+            floor_count += 1
+        elif lattice[x][y][z] == 4:
+            roof_count += 1
+
+    return (walls + roof_count + floor_count) / (2 * (width + depth + height))
+
+def expressive(phase, x_label, y_label):
+    surface_areas = []
+    stabilities = []
+    symmetries = []
+    converted = [convert_to_integer(lattice) for lattice in phase]
+    for lattice in converted:
+        horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
+        stabilities.append(stability(lattice)[0])
+        symmetries.append(symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds))
+        surface_areas.append(surface_ratio(lattice, horizontal_bounds, vertical_bounds, depth_bounds))
+    if x_label == "Instability" and y_label == "Symmetry":
+        return stabilities, symmetries
+    if x_label == "Surface Area" and y_label == "Instability":
+        return surface_areas, stabilities
+    if x_label == "Surface Area" and y_label == "Symmetry":
+        return surface_areas, symmetries
+
+
+def expressive_analysis(experiments, xlabel, ylabel):
+    fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(8, 8), sharex=True, sharey=True)
+    plt.setp(axes[-1, :], xlabel=xlabel)
+    plt.setp(axes[:, 0], ylabel=ylabel)
+    seed = load_seed_set()
+    metric1, metric2 = expressive(seed, xlabel, ylabel)
+    expressive_graph(fig, axes[0, 0], x=metric1, y=metric2, title="Seed", x_label=xlabel, y_label=ylabel)
+    counter = 1
+    locs = [[0,0], [0,1], [0,2], [1,0], [1,1], [1,2], [2,0], [2,1], [2,2]]
     for experiment in experiments:
-        phases = load_training_set(experiment)
-        counter = 0
-        for phase in [phases[0], phases[-1]]:
-            surface_areas = []
-            stabilities = []
-
-            converted = [convert_to_integer(lattice) for lattice in phase]
-
-            print("Starting Analysis")
-            for lattice in converted:
-                horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
-                width = (horizontal_bounds[1] - horizontal_bounds[0])
-                height = vertical_bounds[1]
-                depth = (depth_bounds[1] - depth_bounds[0])
-                lattice_stability, floor_stability = stability(lattice)
-                stabilities.append(floor_stability)
-                roof_count = 0
-                walls = 0
-                floor_count = 0
-                interior_count = 0
-                total_count = 0
-                for (x, y, z) in value_range:
-                    if lattice[x][y][z] == 0:
-                        continue
-                    total_count += 1
-                    if lattice[x][y][z] == 1:
-                        interior_count += 1
-                    elif lattice[x][y][z] == 2:
-                        walls += 1
-                    elif lattice[x][y][z] == 4:
-                        roof_count += 1
-                    elif lattice[x][y][z] == 3:
-                        floor_count += 1
-                surface_areas.append((walls + roof_count + floor_count) / (2 * (width + depth + height)))
-
-            print("Plotting Expressive Graph")
-            expressive_graph(surface_areas, stabilities,
-                             "Expressive Analysis - {}: Phase {}".format(experiment, counter),
-                             "Surface Area / Bounding Box Area", "Lateral Stability")
-            counter += 10
-
+        phase = load_training_set(experiment)[-1]
+        metric1, metric2 = expressive(phase, xlabel, ylabel)
+        expressive_graph(fig, axes[locs[counter][0]][locs[counter][1]], x=metric1, y=metric2, title=experiment, x_label=xlabel, y_label=ylabel)
+        counter += 1
+    fig.subplots_adjust(bottom=0.15)
+    fig.tight_layout()
+    fig.savefig("../Expressive-{}vs{}.png".format(xlabel, ylabel))
+    fig.show()
 
 if __name__ == '__main__':
 
@@ -378,28 +420,27 @@ if __name__ == '__main__':
     plt.rcParams["font.family"] = "Times New Roman"
 
     pool = Pool(process_count)
-    labels = ["Static AE", "Random AE",
-              "Full History AE", "Full History DAE",
-              "Latest Set AE", "Latest Set DAE",
-              "Novelty Archive AE", "Novelty Archive DAE"]
-    colors = ['black', 'red', 'blue', 'green', 'brown', 'orange', 'purple', 'cyan']
+    labels = ["Static AE", "Random AE", "Full History AE", "Full History AE", "Latest Set AE", "Latest Set DAE", "Novelty Archive AE", "Novelty Archive DAE"]
+    colors = ['black', 'red', 'blue']
     keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
 
-    """pop = load_training_set(labels[2])
-    encoder, decoder = load_autoencoder(labels[2], 9)
-
-    for i in range(30, len(pop[-1])):
-        lattice = pop[-1][i]
-        compressed = encoder.predict(lattice[None])[0]
-        reco = decoder.predict(compressed[None])[0]
-        auto_encoder_plot(lattice, compressed, reco, calculate_error(lattice, reco))"""
-
     # for key in keys:
-    #     grid_plot(labels, neat_metric, key, key)
+        # grid_plot(labels, neat_metric, key, key)
     # grid_plot(labels, pca_graph, "Diversity", args=(pca_population(labels)))
-    # grid_plot(labels, lattice_diversity, "Diversity", shareAxes=True)
-    grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=test_population(labels), shareAxes=False)
-    # expressive_analysis(labels)
+
+    # expressive_analysis(labels, "Instability", "Symmetry")
+    # expressive_analysis(labels, "Surface Area", "Symmetry")
+    # expressive_analysis(labels, "Surface Area", "Instability")
+
+    diversity_dict = np.load("Diversities_Total.npy", allow_pickle=True).item()
+    grid_plot(labels, lattice_diversity, "Diversity", shareAxes=True, dict=diversity_dict)
+    np.save("Diversities_Total.npy", diversity_dict)
+
+    diversity_dict = {}
+    grid_plot(labels, diversity_from_humans, "Entropy", shareAxes=True, dict=diversity_dict)
+    np.save("human_diversity.npy", diversity_dict)
+
+    # grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=test_population(labels), shareAxes=False)
     novelty_spectrum(labels)
 
     pool.close()

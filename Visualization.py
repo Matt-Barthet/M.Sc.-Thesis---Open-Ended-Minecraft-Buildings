@@ -1,6 +1,7 @@
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+
 from Delenox_Config import current_run, runs_per_phase
 from mpl_toolkits.mplot3d import axes3d, Axes3D
 from Delenox_Config import lattice_dimensions
@@ -32,7 +33,6 @@ def voxel_plot(lattice, title, filename=None, color_one='blue'):
     else:
         plt.show()
 
-
 def novelty_voxel_plot(lattices, generation, population_id, phase, experiment):
     fig = plt.figure(figsize=(15, 6))
     fig.tight_layout(pad=3)
@@ -47,18 +47,20 @@ def novelty_voxel_plot(lattices, generation, population_id, phase, experiment):
     # plt.show()
 
 
-def expressive_graph(x, y, title, x_label, y_label):
-    histogram, x_edges, y_edges = np.histogram2d(x=x, y=y)
-    fig = plt.figure()
-    plt.title(title)
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    pops = plt.imshow(histogram, interpolation='nearest', origin='lower', aspect='auto',
-                      extent=[0, 25, 0, 12], cmap=plt.cm.get_cmap("gray"))
-    plt.xticks([0, 5, 10, 15, 20, 25])
-    plt.yticks([0, 2, 4, 6, 8, 10, 12])
-    fig.colorbar(pops, label="Building Frequency")
-    plt.show()
+def expressive_graph(fig, ax, x, y, title, x_label, y_label):
+    if x_label == "Instability" and y_label == "Symmetry":
+        histogram, x_edges, y_edges = np.histogram2d(x=x, y=y, bins=[np.linspace(0, 12, 20), np.linspace(0, 0.7, 20)])
+    if x_label == "Surface Area" and y_label == "Instability":
+        histogram, x_edges, y_edges = np.histogram2d(x=x, y=y, bins=[np.linspace(0, 28, 20), np.linspace(0, 12, 20)])
+    if x_label == "Surface Area" and y_label == "Symmetry":
+        histogram, x_edges, y_edges = np.histogram2d(x=x, y=y, bins=[np.linspace(0, 28, 20), np.linspace(0, 0.7, 20)])
+
+    ax.set_title(title)
+    pops = ax.imshow(np.transpose(histogram), interpolation='nearest', origin='lower', aspect='auto',
+                      extent=[0, x_edges[-1], 0, y_edges[-1]], cmap=plt.cm.get_cmap("gray"))
+    plt.xticks(np.round(np.linspace(0, x_edges[-1], 6, dtype=int), 2))
+    plt.yticks(np.round(np.linspace(0, y_edges[-1], 6, dtype=float), 2))
+    fig.colorbar(pops, ax=ax)
 
 def convert_to_integer(lattice):
     """

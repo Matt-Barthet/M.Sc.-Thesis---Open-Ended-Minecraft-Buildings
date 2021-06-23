@@ -4,7 +4,7 @@ from keras.layers import Dense, Flatten, Reshape, Input, Conv2D, Conv2DTranspose
                          MaxPooling3D, Conv3DTranspose, UpSampling3D
 from keras.models import Sequential, Model
 from sklearn.model_selection import train_test_split
-from tensorflow.python.keras.models import model_from_json
+from keras.models import model_from_json
 from Delenox_Config import lattice_dimensions, batch_size, no_epochs, thread_count, value_range, current_run, \
     compressed_length
 from Visualization import auto_encoder_plot, visualize_training

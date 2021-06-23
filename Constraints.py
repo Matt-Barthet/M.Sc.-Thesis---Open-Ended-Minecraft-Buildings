@@ -484,3 +484,7 @@ def change_to_ones(input_lattice, keep_interior=False):
                 elif not keep_interior:
                     input_lattice[i][j][k] = 0
     return input_lattice
+
+if __name__ == "__main__":
+    human_population = np.load("Real-World Datasets/Ahousev5_Buildings_Fixed.npy", allow_pickle=True)
+    voxel_plot(identify_materials(human_population[1]), "")

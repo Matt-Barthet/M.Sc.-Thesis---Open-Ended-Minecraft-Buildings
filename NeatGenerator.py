@@ -26,7 +26,7 @@ class NeatGenerator:
         self.decoder = None
         self.pool = None
         self.noise = False
-        self.archive = {}
+        self.archive = []
         self.phase_best_fit = []
         self.archive_lattices = []
         self.neat_metrics = {'Experiment': None, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [], 'Infeasible Size': [],
@@ -74,15 +74,9 @@ class NeatGenerator:
 
         # Update the archive of latent vectors with the current encoder's interpretation of the lattices
         print("Updating Archive with New Encoder")
-        try:
-            self.archive = list(self.archive.values())
-        except:
-            self.archive.clear()
-
-        """
         self.archive = []
         for lattice in self.archive_lattices:
-            self.archive.append(self.encoder.predict(lattice[None])[0])"""
+            self.archive.append(self.encoder.predict(lattice[None])[0])
 
         # Initialize the processes used for the NEAT run and execute the phase.
         self.pool = Pool(thread_count)
@@ -100,8 +94,8 @@ class NeatGenerator:
         self.encoder = None
         self.decoder = None
 
-        # return self, self.phase_best_fit, self.neat_metrics
-        return self, self.archive_lattices, self.neat_metrics
+        return self, self.phase_best_fit, self.neat_metrics
+        # return self, self.archive_lattices, self.neat_metrics
 
     def run_one_generation(self, genomes, config):
         """
@@ -249,8 +243,6 @@ def generate_lattice(genome, config, noise_flag=True, plot=None):
         lattice[x][y][z] = np.round(
             net.activate((x / lattice_dimensions[0], y / lattice_dimensions[0], z / lattice_dimensions[0]))[0])
     feasible, lattice = apply_constraints(lattice)
-    if noise_flag:
-        noisy = add_noise(lattice)
     if plot is not None:
         voxel_plot(lattice, plot)
 
