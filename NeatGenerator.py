@@ -94,8 +94,8 @@ class NeatGenerator:
         self.encoder = None
         self.decoder = None
 
-        return self, self.phase_best_fit, self.neat_metrics
-        # return self, self.archive_lattices, self.neat_metrics
+        # return self, self.phase_best_fit, self.neat_metrics
+        return self, self.archive_lattices, self.neat_metrics
 
     def run_one_generation(self, genomes, config):
         """
@@ -243,6 +243,8 @@ def generate_lattice(genome, config, noise_flag=True, plot=None):
         lattice[x][y][z] = np.round(
             net.activate((x / lattice_dimensions[0], y / lattice_dimensions[0], z / lattice_dimensions[0]))[0])
     feasible, lattice = apply_constraints(lattice)
+    if noise_flag:
+        noisy = add_noise(lattice)
     if plot is not None:
         voxel_plot(lattice, plot)
 

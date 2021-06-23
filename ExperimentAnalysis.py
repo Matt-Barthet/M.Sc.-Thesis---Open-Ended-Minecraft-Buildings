@@ -30,14 +30,17 @@ def load_training_set(label):
         np.load("Delenox_Experiment_Data/{}/Phase{}/Training_Set.npz".format(label, i),
                 allow_pickle=True)['arr_0'])[-1000:] for i in range(10)]
 
+
 def load_seed_set():
     return list(np.load("Delenox_Experiment_Data/Seed/Initial_Training_Set.npy",
                         allow_pickle=True))
+
 
 def load_populations(label):
     return [[list(
         np.load("Delenox_Experiment_Data/{}/Phase{}/Population_{}.npz".format(label, j, i),
                 allow_pickle=True)['arr_0'].item().values()) for i in range(10)] for j in range(10)]
+
 
 def load_metric(label, metric):
     try:
@@ -47,23 +50,25 @@ def load_metric(label, metric):
         return np.load("Delenox_Experiment_Data/{}/Phase{}/Metrics.npz".format(label, 9),
                        allow_pickle=True)['arr_0'].item()[metric]
 
+
 def load_metrics(labels, metric):
     return [np.load("Delenox_Experiment_Data/{}/Phase{}/Metrics.npy".format(directory, 9),
                     allow_pickle=True)[metric] for directory in labels]
 
+
 def load_autoencoder(label, phase):
     try:
-        encoder = load_model(
-            "Delenox_Experiment_Data/{}/Phase{}/encoder".format(label, phase))
-        decoder = load_model(
-            "Delenox_Experiment_Data/{}/Phase{}/decoder".format(label, phase))
+        print("Delenox_Experiment_Data/{}/Phase{}/encoder".format(label, phase))
+        encoder = load_model("Delenox_Experiment_Data/{}/Phase{}/encoder".format(label, phase))
+        decoder = load_model("Delenox_Experiment_Data/{}/Phase{}/decoder".format(label, phase))
     except FileNotFoundError:
         print("File not found")
         encoder = load_model(
-            "Delenox_Experiment_Data/{}/Phase{}/encoder".format(label, 0))
+            "Delenox_Experiment_Data/seed/encoder".format(label, 0))
         decoder = load_model(
-            "Delenox_Experiment_Data/{}/Phase{}/decoder".format(label, 0))
+            "Delenox_Experiment_Data/seed/decoder".format(label, 0))
     return encoder, decoder
+
 
 def vector_entropy(vector1, population):
     entropies = []
@@ -174,7 +179,7 @@ def reconstruction_accuracy(experiment, args):
             means.append(np.mean(errors))
             cis.append(np.std(errors) / np.sqrt(len(errors)) * 1.96)
 
-    diversity_dict.update({experiment: [means, cis]})
+    diversity_dict.update({experiment: [np.asarray(means), np.asarray(cis)]})
     return np.asarray(means), np.asarray(cis)
 
 
@@ -242,8 +247,6 @@ def neat_metric(experiment, metric):
 
 
 plt.rc('axes', labelsize=12)
-
-
 
 
 def grid_plot(experiments, function, title, dict, args=None, shareAxes=True):
@@ -335,7 +338,7 @@ def novelty_spectrum(labels):
                     counter += 1
                 jobs = []
                 for key in compressed.keys():
-                    parameters = (key, compressed, {})
+                    parameters = (key, compressed, [])
                     jobs.append(pool.apply_async(novelty_search, parameters))
                 for job, genome_id in zip(jobs, compressed.keys()):
                     fitness.update({genome_id: job.get()})
@@ -388,6 +391,7 @@ def surface_ratio(lattice, h_bound, v_bound, d_bound):
 
     return (walls + roof_count + floor_count) / (2 * (width + depth + height))
 
+
 def expressive(phase, x_label, y_label):
     surface_areas = []
     stabilities = []
@@ -395,9 +399,9 @@ def expressive(phase, x_label, y_label):
     converted = [convert_to_integer(lattice) for lattice in phase]
     for lattice in converted:
         horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
-        stabilities.append(stability(lattice)[0])
         symmetries.append(symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds))
         surface_areas.append(surface_ratio(lattice, horizontal_bounds, vertical_bounds, depth_bounds))
+        stabilities.append(stability(lattice)[0])
     if x_label == "Instability" and y_label == "Symmetry":
         return stabilities, symmetries
     if x_label == "Surface Area" and y_label == "Instability":
@@ -406,24 +410,41 @@ def expressive(phase, x_label, y_label):
         return surface_areas, symmetries
 
 
-def expressive_analysis(experiments, xlabel, ylabel):
+def expressive_analysis(experiments, xlabel, ylabel, dict=None):
     fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(8, 8), sharex=True, sharey=True)
     plt.setp(axes[-1, :], xlabel=xlabel)
     plt.setp(axes[:, 0], ylabel=ylabel)
-    seed = load_seed_set()
-    metric1, metric2 = expressive(seed, xlabel, ylabel)
+
+    try:
+        metric1 = dict['Seed'][xlabel]
+        metric2 = dict['Seed'][ylabel]
+        print("Seed data found!")
+    except:
+        print("No seed data found, calculating new points")
+        seed = load_seed_set()
+        metric1, metric2 = expressive(seed, xlabel, ylabel)
+        diversity_dict["Seed"].update({xlabel: metric1, ylabel: metric2})
+
     expressive_graph(fig, axes[0, 0], x=metric1, y=metric2, title="Seed", x_label=xlabel, y_label=ylabel)
     counter = 1
-    locs = [[0,0], [0,1], [0,2], [1,0], [1,1], [1,2], [2,0], [2,1], [2,2]]
+    locs = [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]]
     for experiment in experiments:
-        phase = load_training_set(experiment)[-1]
-        metric1, metric2 = expressive(phase, xlabel, ylabel)
+        try:
+            metric1 = dict[experiment][xlabel]
+            metric2 = dict[experiment][ylabel]
+            print("{} data found!".format(experiment))
+        except:
+            print("{} data not found! Calculating new points..".format(experiment))
+            phase = load_training_set(experiment)[-1]
+            metric1, metric2 = expressive(phase, xlabel, ylabel)
+            diversity_dict[experiment].update({xlabel: metric1, ylabel: metric2})
         expressive_graph(fig, axes[locs[counter][0]][locs[counter][1]], x=metric1, y=metric2, title=experiment, x_label=xlabel, y_label=ylabel)
         counter += 1
     fig.subplots_adjust(bottom=0.15)
     fig.tight_layout()
     fig.savefig("../Expressive-{}vs{}.png".format(xlabel, ylabel))
     fig.show()
+
 
 if __name__ == '__main__':
 
@@ -443,11 +464,14 @@ if __name__ == '__main__':
         # grid_plot(labels, neat_metric, key, key)
     # grid_plot(labels, pca_graph, "Diversity", args=(pca_population(labels)))
 
-    # expressive_analysis(labels, "Instability", "Symmetry")
-    # expressive_analysis(labels, "Surface Area", "Symmetry")
-    # expressive_analysis(labels, "Surface Area", "Instability")
+    diversity_dict = np.load("Expressive.npy", allow_pickle=True).item()
+    expressive_analysis(labels, "Instability", "Symmetry", diversity_dict)
+    expressive_analysis(labels, "Surface Area", "Symmetry", diversity_dict)
+    expressive_analysis(labels, "Surface Area", "Instability", diversity_dict)
+    np.save("Expressive.npy", diversity_dict)
+    # novelty_spectrum(labels)
 
-    diversity_dict = np.load("Reconstruction.npy", allow_pickle=True)
+    diversity_dict = np.load("Reconstruction.npy", allow_pickle=True).item()
     grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", dict=diversity_dict, args=test_population(labels), shareAxes=False)
     np.save("Reconstruction.npy", diversity_dict)
 
@@ -458,7 +482,6 @@ if __name__ == '__main__':
     diversity_dict = np.load("Human_Diversity.npy", allow_pickle=True).item()
     grid_plot(labels, diversity_from_humans, "Entropy", shareAxes=True, dict=diversity_dict)
     np.save("Human_Diversity.npy", diversity_dict)
-    novelty_spectrum(labels)
 
     pool.close()
     pool.join()
