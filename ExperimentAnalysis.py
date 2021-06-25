@@ -1,28 +1,16 @@
 import itertools
-import random
 import os
 from multiprocessing import Pool
 import matplotlib.pyplot as plt
-import numpy as np
 import tensorflow as tf
 from scipy.special import softmax
 from scipy.stats import entropy
 from sklearn.decomposition import PCA
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Autoencoder import load_model, convert_to_integer, calculate_error, add_noise
-from Visualization import voxel_plot, auto_encoder_plot, get_color_map, expressive_graph
-from Delenox_Config import value_range
 from Constraints import *
 from NeatGenerator import novelty_search
-import os
-
-flatten = itertools.chain.from_iterable
-
-locations = [(0, 0), (0, 1), (1, 0), (1, 1)]
-pca_locs = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)]
-novelty_spectrum_subplots = [[(5, 5, index * 5 + offset) for index in range(5)] for offset in range(1, 6)]
-ae_label = ['Vanilla AE', 'Denoising AE']
-process_count = 16
+from Visualization import get_color_map, expressive_graph
 
 
 def load_training_set(label):
@@ -58,7 +46,6 @@ def load_metrics(labels, metric):
 
 def load_autoencoder(label, phase):
     try:
-        print("Delenox_Experiment_Data/{}/Phase{}/encoder".format(label, phase))
         encoder = load_model("Delenox_Experiment_Data/{}/Phase{}/encoder".format(label, phase))
         decoder = load_model("Delenox_Experiment_Data/{}/Phase{}/decoder".format(label, phase))
     except FileNotFoundError:
@@ -74,7 +61,7 @@ def vector_entropy(vector1, population):
     entropies = []
     for neighbour in population:
         entropies.append(entropy(vector1, neighbour))
-    return np.mean(np.sort(entropies)[:15])
+    return np.mean(np.sort(entropies))
 
 
 def lattice_diversity(experiment, args=None):
@@ -88,7 +75,7 @@ def lattice_diversity(experiment, args=None):
             results = [pool.apply_async(vector_entropy, (lattice, lattices)) for lattice in lattices]
             phase_diversities.append(np.mean([result.get() for result in results]))
         experiment_diversity.append(phase_diversities)
-    experiment_diversity = np.stack(experiment_diversity, axis=1)
+    # experiment_diversity = np.stack(experiment_diversity, axis=1)
     means = np.mean(experiment_diversity, axis=1)
     ci = np.std(experiment_diversity, axis=1) / np.sqrt(10) * 1.96
     diversity_dict.update({experiment: [means, ci]})
@@ -109,7 +96,7 @@ def diversity_from_humans(experiment, args=None):
             results = [pool.apply_async(vector_entropy, (lattice, targets)) for lattice in lattices]
             phase_diversities.append(np.mean([result.get() for result in results]))
         experiment_diversity.append(phase_diversities)
-    experiment_diversity = np.stack(experiment_diversity, axis=1)
+    # experiment_diversity = np.stack(experiment_diversity, axis=1)
     means = np.mean(experiment_diversity, axis=1)
     ci = np.std(experiment_diversity, axis=1) / np.sqrt(10) * 1.96
     diversity_dict.update({experiment: [means, ci]})
@@ -184,56 +171,50 @@ def reconstruction_accuracy(experiment, args):
 
 
 def pca_population(experiments):
-    """
-
-    :param experiments:
-    :return:
-    """
     pca = PCA(n_components=2)
-
     try:
         pca_pop = np.load("PCA.npy", allow_pickle=True)
     except:
         print("Loading experiment training sets and flattening them into 1D arrays...")
         pca_pop = [[[convert_to_integer(lattice).ravel() for lattice in load_seed_set()]]]
-        pca_pop += [[[convert_to_integer(lattice).ravel() for lattice in phase] for phase in load_training_set(experiment)]
-                   for experiment in experiments]
+        pca_pop += [
+            [[convert_to_integer(lattice).ravel() for lattice in phase] for phase in load_training_set(experiment)] for
+            experiment in experiments]
         np.save("./PCA.npy", np.asarray(pca_pop))
-
     pca.fit(list(flatten(list(flatten(pca_pop)))))
-
     return pca, pca_pop
 
 
 def scatter_plots(pca_pops):
-    fig, axes = plt.subplots(nrows=2, ncols=5, figsize=(9, 5.25), sharex=True, sharey=True)
-    fig.suptitle("PCA Scatter Plots")
-    pca_labels = ['Seed'] + labels
-    for i in range(10):
-        axis = axes[pca_locs[i][0]][pca_locs[i][1]]
-        axis.set_title("{}".format(pca_labels[i]),fontsize=12)
-        axis.scatter([item[0] for item in pca_pops[i][-1]], [item[1] for item in pca_pops[i][-1]], s=7,
-                     alpha=0.5)
+    fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(8, 8), sharex=True, sharey=True)
+    fig.suptitle("PCA Scatter Plots - 10$^{th}$ Iteration")
+    pca_labels = labels
+
+    print(np.asarray(pca_pops[1][0][-1]).shape)
+
+    pca_pop = pca_pops[0].transform(pca_pops[1][0][-1])
+    axis = axes[pca_locs[0][0]][pca_locs[0][1]]
+    axis.set_title("Seed", fontsize=12)
+    axis.scatter([item[0] for item in pca_pop], [item[1] for item in pca_pop], s=7, alpha=0.5)
+
+    for i in range(8):
+        axis = axes[pca_locs[i + 1][0]][pca_locs[i + 1][1]]
+        axis.set_title("{}".format(labels[i]), fontsize=12)
+        pca_pop = pca_pops[0].transform(pca_pops[1][i + 1][-1])
+        axis.scatter([item[0] for item in pca_pop], [item[1] for item in pca_pop], s=7, alpha=0.5)
         plt.setp(axes[-1, :], xlabel='PC1')
         plt.setp(axes[:, 0], ylabel='PC2')
-        fig.tight_layout()
-        fig.savefig("../PCA.png")
-        fig.show()
+    fig.tight_layout()
+    fig.savefig("../PCA.png")
+    fig.show()
+
 
 def pca_graph(experiment, args=None, shareAxes=True):
-    """
-
-    :param shareAxes:
-    :param experiment:
-    :param args:
-    :return:
-    """
     print("PCA - {}".format(experiment))
-    experiment_population = args[0][1][args[1]]
+    experiment_population = args[0][1][args[1] + 1]
     diversity = []
     for training_set in range(len(experiment_population)):
         principal_components = args[0][0].transform(experiment_population[training_set])
-
         diversities = []
         for pc in principal_components:
             distances = []
@@ -241,12 +222,12 @@ def pca_graph(experiment, args=None, shareAxes=True):
                 distances.append(np.linalg.norm(pc - other))
             distances = np.sort(distances)[1:]
             diversities.append(np.mean(distances[:15]))
+        diversity.append(diversities)
 
     return np.asarray([np.mean(diversity1) for diversity1 in diversity]), np.asarray(
         [np.std(diversity1) / np.sqrt(len(diversity1)) * 1.96 for diversity1 in diversity])
 
 
-# TODO: Modular version of the NEAT metrics visualizations for grid_plot
 def neat_metric(experiment, metric):
     metric = np.asarray(load_metric(experiment, metric[0]))
     if metric.shape == (10, 1000):
@@ -257,19 +238,14 @@ def neat_metric(experiment, metric):
     return mean, ci
 
 
-plt.rc('axes', labelsize=12)
-
-
 def grid_plot(experiments, function, title, dict, args=None, shareAxes=True):
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 6.5), sharex=shareAxes, sharey=shareAxes)
-
     try:
         [baseline_means, baseline_ci] = dict['Static AE']
         print ("Static AE data found!")
     except:
         print ("No data found, calculating new points")
         baseline_means, baseline_ci = function(experiments[0], (args, 0))
-
     counter = 0
     for experiment in [(1,), (2, 3), (4, 5), (6, 7)]:
         axis = axes[locations[counter][0]][locations[counter][1]]
@@ -288,13 +264,10 @@ def grid_plot(experiments, function, title, dict, args=None, shareAxes=True):
             axis.fill_between(x=range(len(means)), y1=means + ci, y2=means - ci, color=colors[sub + 1], alpha=0.1)
         axis.grid()
         counter += 1
-
         handles, legendlabels = axis.get_legend_handles_labels()
-
     fig.legend(handles=handles, labels=legendlabels, fontsize=12, loc='lower center', ncol=6, )
     plt.setp(axes[-1, :], xlabel='Phase')
     plt.setp(axes[:, 0], ylabel=title)
-
     fig.tight_layout()
     fig.subplots_adjust(bottom=0.15)
     fig.savefig("../{}.png".format(title))
@@ -377,6 +350,7 @@ def symmetry(lattice, h_bound, v_bound, d_bound):
     symmetry += depth_symmetry(lattice, h_bound, v_bound, d_bound)
     return symmetry / 12000
 
+
 def surface_ratio(lattice, h_bound, v_bound, d_bound):
     width = (h_bound[1] - h_bound[0])
     height = v_bound[1]
@@ -450,10 +424,31 @@ def expressive_analysis(experiments, xlabel, ylabel, dict=None):
             diversity_dict[experiment].update({xlabel: metric1, ylabel: metric2})
         expressive_graph(fig, axes[locs[counter][0]][locs[counter][1]], x=metric1, y=metric2, title=experiment, x_label=xlabel, y_label=ylabel)
         counter += 1
+
     fig.subplots_adjust(bottom=0.15)
     fig.tight_layout()
     fig.savefig("../Expressive-{}vs{}.png".format(xlabel, ylabel))
     fig.show()
+
+
+def novelty_critic(experiment, args=None):
+    human_population = np.load("Real-World Datasets/Ahousev5_Buildings_Varied.npy", allow_pickle=True)
+    targets = [to_categorical(lattice, num_classes=5) for lattice in human_population]
+    experiment_population = load_training_set(experiment)
+    experiment_diversity = []
+
+    for phase in range(len(experiment_population)):
+        print("Evaluating Human Buildings: {} - Phase {}".format(experiment, phase))
+        encoder, decoder = load_autoencoder(experiment, phase)
+        experiment_vectors = [encoder.predict(lattice[None])[0] for lattice in experiment_population[phase]]
+        human_vectors = [encoder.predict(lattice[None])[0] for lattice in targets]
+        results = [pool.apply_async(vector_entropy, (lattice, experiment_vectors)) for lattice in human_vectors]
+        experiment_diversity.append([result.get() for result in results])
+
+    means = np.mean(experiment_diversity, axis=1)
+    ci = np.std(experiment_diversity, axis=1) / np.sqrt(10) * 1.96
+    diversity_dict.update({experiment: [means, ci]})
+    return means, ci
 
 
 if __name__ == '__main__':
@@ -464,8 +459,16 @@ if __name__ == '__main__':
 
     plt.rcParams['image.cmap'] = 'viridis'
     plt.rcParams["font.family"] = "Times New Roman"
+    plt.rc('axes', labelsize=12)
 
-    pool = Pool(process_count)
+    flatten = itertools.chain.from_iterable
+
+    locations = [(0, 0), (0, 1), (1, 0), (1, 1)]
+    pca_locs = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)]
+    novelty_spectrum_subplots = [[(5, 5, index * 5 + offset) for index in range(5)] for offset in range(1, 6)]
+    ae_label = ['Vanilla AE', 'Denoising AE']
+
+    pool = Pool(12)
     labels = ["Static AE", "Random AE", "Full History AE", "Full History DAE", "Latest Set AE", "Latest Set DAE", "Novelty Archive AE", "Novelty Archive DAE"]
     colors = ['black', 'red', 'blue']
     keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
@@ -474,27 +477,33 @@ if __name__ == '__main__':
         # grid_plot(labels, neat_metric, key, key)
     # grid_plot(labels, pca_graph, "Diversity", args=(pca_population(labels)))
 
-    grid_plot(labels, pca_graph, "Reconstruction Error", args=pca_population(labels), shareAxes=False)
+    # grid_plot(labels, pca_graph, "Reconstruction Error", args=pca_population(labels), shareAxes=False)
 
-    """
-    diversity_dict = np.load("Expressive.npy", allow_pickle=True).item()
-    expressive_analysis(labels, "Instability", "Symmetry", diversity_dict)
-    expressive_analysis(labels, "Surface Area", "Symmetry", diversity_dict)
-    expressive_analysis(labels, "Surface Area", "Instability", diversity_dict)
-    np.save("Expressive.npy", diversity_dict)
+    # diversity_dict = np.load("Expressive.npy", allow_pickle=True).item()
+    #expressive_analysis(labels, "Instability", "Symmetry", diversity_dict)
+    #expressive_analysis(labels, "Surface Area", "Symmetry", diversity_dict)
+    #expressive_analysis(labels, "Surface Area", "Instability", diversity_dict)
+    # np.save("Expressive.npy", diversity_dict)
     # novelty_spectrum(labels)
 
-    diversity_dict = np.load("Reconstruction.npy", allow_pickle=True).item()
+    diversity_dict = {}
+    grid_plot(labels, novelty_critic, "Assigned Novelty", shareAxes=True, dict=diversity_dict)
+    np.save("Critic_Results.npy", diversity_dict)
+
+
+    """diversity_dict = np.load("Reconstruction.npy", allow_pickle=True).item()
     grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", dict=diversity_dict, args=test_population(labels), shareAxes=False)
-    np.save("Reconstruction.npy", diversity_dict)
+    np.save("Reconstruction.npy", diversity_dict)"""
 
-    diversity_dict = np.load("Diversities_Total.npy", allow_pickle=True).item()
+    # grid_plot(labels, pca_graph, "Eucl. Diversity", args=pca_population(labels), shareAxes=True, dict={})
+
+    diversity_dict = np.load("Diversities_No_K.npy", allow_pickle=True).item()
     grid_plot(labels, lattice_diversity, "Diversity", shareAxes=True, dict=diversity_dict)
-    np.save("Diversities_Total.npy", diversity_dict)
+    np.save("Diversities_No_K.npy", diversity_dict)
 
-    diversity_dict = np.load("Human_Diversity.npy", allow_pickle=True).item()
+    diversity_dict = np.load("Human_Diversity_No_K.npy", allow_pickle=True).item()
     grid_plot(labels, diversity_from_humans, "Entropy", shareAxes=True, dict=diversity_dict)
-    np.save("Human_Diversity.npy", diversity_dict)"""
+    np.save("Human_Diversity_No_K.npy", diversity_dict)
 
     pool.close()
     pool.join()

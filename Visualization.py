@@ -56,8 +56,14 @@ def expressive_graph(fig, ax, x, y, title, x_label, y_label):
         histogram, x_edges, y_edges = np.histogram2d(x=x, y=y, bins=[np.linspace(0, 28, 20), np.linspace(0, 0.7, 20)])
 
     ax.set_title(title)
-    pops = ax.imshow(np.transpose(histogram), interpolation='nearest', origin='lower', aspect='auto',
-                      extent=[0, x_edges[-1], 0, y_edges[-1]], cmap=plt.cm.get_cmap("gray"))
+    pops = ax.imshow(np.transpose(histogram),
+                     interpolation='nearest',
+                     origin='lower',
+                     aspect='auto',
+                     extent=[0, x_edges[-1], 0, y_edges[-1]],
+                     cmap=plt.cm.get_cmap("gray"),
+                     vmin=0,
+                     vmax=30)
     fig.colorbar(pops, ax=ax)
 
 def convert_to_integer(lattice):
