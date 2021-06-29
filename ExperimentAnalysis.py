@@ -57,6 +57,13 @@ def load_autoencoder(label, phase):
     return encoder, decoder
 
 
+def vector_novelty(vector1, population):
+    entropies = []
+    for neighbour in population:
+        entropies.append(np.linalg.norm(vector1 - neighbour))
+    return np.mean(np.sort(entropies))
+
+
 def vector_entropy(vector1, population):
     entropies = []
     for neighbour in population:
@@ -238,7 +245,7 @@ def neat_metric(experiment, metric):
     return mean, ci
 
 
-def grid_plot(experiments, function, title, dict, args=None, shareAxes=True):
+def grid_plot(experiments, function, title, dict, args=None, shareAxes=True, normalize=False):
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 6.5), sharex=shareAxes, sharey=shareAxes)
     try:
         [baseline_means, baseline_ci] = dict['Static AE']
@@ -247,6 +254,10 @@ def grid_plot(experiments, function, title, dict, args=None, shareAxes=True):
         print ("No data found, calculating new points")
         baseline_means, baseline_ci = function(experiments[0], (args, 0))
     counter = 0
+
+    baseline_means /= np.max(baseline_means, axis=1)
+    baseline_ci /= np.max(baseline_ci, axis=1)
+
     for experiment in [(1,), (2, 3), (4, 5), (6, 7)]:
         axis = axes[locations[counter][0]][locations[counter][1]]
         axis.errorbar(x=range(len(baseline_means)), y=baseline_means, label=labels[0], color=colors[0])
@@ -260,6 +271,10 @@ def grid_plot(experiments, function, title, dict, args=None, shareAxes=True):
             except:
                 print("No data found for {}, calculating new points".format(labels[experiment[sub]]))
                 means, ci = function(experiments[experiment[sub]], (args, experiment[sub]))
+
+            means /= np.max(means)
+            ci /= np.max(ci)
+
             axis.errorbar(x=range(len(means)), y=means, label=ae_label[sub], color=colors[sub + 1])
             axis.fill_between(x=range(len(means)), y1=means + ci, y2=means - ci, color=colors[sub + 1], alpha=0.1)
         axis.grid()
@@ -434,19 +449,19 @@ def expressive_analysis(experiments, xlabel, ylabel, dict=None):
 def novelty_critic(experiment, args=None):
     human_population = np.load("Real-World Datasets/Ahousev5_Buildings_Varied.npy", allow_pickle=True)
     targets = [to_categorical(lattice, num_classes=5) for lattice in human_population]
-    experiment_population = load_training_set(experiment)
+    # experiment_population = load_training_set(experiment)
     experiment_diversity = []
 
-    for phase in range(len(experiment_population)):
+    for phase in range(10):
         print("Evaluating Human Buildings: {} - Phase {}".format(experiment, phase))
         encoder, decoder = load_autoencoder(experiment, phase)
-        experiment_vectors = [encoder.predict(lattice[None])[0] for lattice in experiment_population[phase]]
+        #  = [encoder.predict(lattice[None])[0] for lattice in experiment_population[phase]]
         human_vectors = [encoder.predict(lattice[None])[0] for lattice in targets]
-        results = [pool.apply_async(vector_entropy, (lattice, experiment_vectors)) for lattice in human_vectors]
+        results = [pool.apply_async(vector_novelty, (lattice, human_vectors)) for lattice in human_vectors]
         experiment_diversity.append([result.get() for result in results])
-
+        print(experiment_diversity[-1])
     means = np.mean(experiment_diversity, axis=1)
-    ci = np.std(experiment_diversity, axis=1) / np.sqrt(10) * 1.96
+    ci = np.std(experiment_diversity, axis=1) / np.sqrt(len(experiment_diversity[0])) * 1.96
     diversity_dict.update({experiment: [means, ci]})
     return means, ci
 
@@ -486,14 +501,15 @@ if __name__ == '__main__':
     # np.save("Expressive.npy", diversity_dict)
     # novelty_spectrum(labels)
 
-    diversity_dict = {}
+    diversity_dict = np.load("Critic_Results_Intra.npy", allow_pickle=True).item()
+    # diversity_dict = {}
     grid_plot(labels, novelty_critic, "Assigned Novelty", shareAxes=True, dict=diversity_dict)
-    np.save("Critic_Results.npy", diversity_dict)
+    np.save("Critic_Results_Intra.npy", diversity_dict)
 
 
     """diversity_dict = np.load("Reconstruction.npy", allow_pickle=True).item()
     grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", dict=diversity_dict, args=test_population(labels), shareAxes=False)
-    np.save("Reconstruction.npy", diversity_dict)"""
+    np.save("Reconstruction.npy", diversity_dict)
 
     # grid_plot(labels, pca_graph, "Eucl. Diversity", args=pca_population(labels), shareAxes=True, dict={})
 
@@ -504,6 +520,6 @@ if __name__ == '__main__':
     diversity_dict = np.load("Human_Diversity_No_K.npy", allow_pickle=True).item()
     grid_plot(labels, diversity_from_humans, "Entropy", shareAxes=True, dict=diversity_dict)
     np.save("Human_Diversity_No_K.npy", diversity_dict)
-
+    """
     pool.close()
     pool.join()
