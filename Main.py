@@ -8,8 +8,11 @@ if __name__ == '__main__':
 
     os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
 
+    # To run an experiment - specify the following four parameters and an experiment title and run the main script
     static = False
     noisy = True
+    full_history = False
+    random_ae = False
     experiment = "Novelty Archive DAE"
 
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
@@ -73,7 +76,13 @@ if __name__ == '__main__':
 
         if not static and not os.path.exists('Delenox_Experiment_Data/{}/Phase{:d}/encoder.json'.format(experiment, phase)):
             training_history = []
-            for rewind in range(phase, phase + 1):
+
+            if not full_history:
+                start = phase
+            else:
+                start = 0
+
+            for rewind in range(start, phase + 1):
                 training_history += list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, rewind))['arr_0'])
 
             if noisy:
@@ -81,11 +90,15 @@ if __name__ == '__main__':
             else:
                 noisy_population = None
 
+            if random_ae:
+                training_pop = None
+            else:
+                training_pop = np.asarray(training_history)
+
             ae, encoder, decoder = create_auto_encoder(model_type=auto_encoder_3d,
                                                        phase=phase,
                                                        experiment=experiment,
-                                                       population=np.asarray(training_history),
-                                                       # population=None,
+                                                       population=training_pop,
                                                        noisy=noisy_population
                                                        )
         plt.close('all')

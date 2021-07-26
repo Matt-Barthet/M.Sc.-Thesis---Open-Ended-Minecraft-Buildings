@@ -488,38 +488,32 @@ if __name__ == '__main__':
     colors = ['black', 'red', 'blue']
     keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
 
-    # for key in keys:
-        # grid_plot(labels, neat_metric, key, key)
-    # grid_plot(labels, pca_graph, "Diversity", args=(pca_population(labels)))
-
-    # grid_plot(labels, pca_graph, "Reconstruction Error", args=pca_population(labels), shareAxes=False)
-
-    # diversity_dict = np.load("Expressive.npy", allow_pickle=True).item()
-    #expressive_analysis(labels, "Instability", "Symmetry", diversity_dict)
-    #expressive_analysis(labels, "Surface Area", "Symmetry", diversity_dict)
-    #expressive_analysis(labels, "Surface Area", "Instability", diversity_dict)
+    diversity_dict = np.load("Expressive.npy", allow_pickle=True).item()
+    expressive_analysis(labels, "Instability", "Symmetry", diversity_dict)
+    expressive_analysis(labels, "Surface Area", "Symmetry", diversity_dict)
+    expressive_analysis(labels, "Surface Area", "Instability", diversity_dict)
     # np.save("Expressive.npy", diversity_dict)
-    # novelty_spectrum(labels)
+
+    novelty_spectrum(labels)
 
     diversity_dict = np.load("Results/Critic_Results_Intra.npy", allow_pickle=True).item()
-    # diversity_dict = {}
     grid_plot(labels, novelty_critic, "Assigned Novelty", shareAxes=True, dict=diversity_dict)
-    np.save("Results/Critic_Results_Intra.npy", diversity_dict)
+    # np.save("Results/Critic_Results_Intra.npy", diversity_dict)
 
 
-    """diversity_dict = np.load("Reconstruction.npy", allow_pickle=True).item()
+    diversity_dict = np.load("Reconstruction.npy", allow_pickle=True).item()
     grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", dict=diversity_dict, args=test_population(labels), shareAxes=False)
-    np.save("Reconstruction.npy", diversity_dict)
+    # np.save("Reconstruction.npy", diversity_dict)
 
     # grid_plot(labels, pca_graph, "Eucl. Diversity", args=pca_population(labels), shareAxes=True, dict={})
 
     diversity_dict = np.load("Diversities_No_K.npy", allow_pickle=True).item()
     grid_plot(labels, lattice_diversity, "Diversity", shareAxes=True, dict=diversity_dict)
-    np.save("Diversities_No_K.npy", diversity_dict)
+    # np.save("Diversities_No_K.npy", diversity_dict)
 
     diversity_dict = np.load("Human_Diversity_No_K.npy", allow_pickle=True).item()
     grid_plot(labels, diversity_from_humans, "Entropy", shareAxes=True, dict=diversity_dict)
-    np.save("Human_Diversity_No_K.npy", diversity_dict)
-    """
+    # np.save("Human_Diversity_No_K.npy", diversity_dict)
+
     pool.close()
     pool.join()
