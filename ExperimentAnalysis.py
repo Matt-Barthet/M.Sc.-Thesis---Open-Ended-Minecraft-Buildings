@@ -180,14 +180,14 @@ def reconstruction_accuracy(experiment, args):
 def pca_population(experiments):
     pca = PCA(n_components=2)
     try:
-        pca_pop = np.load("PCA.npy", allow_pickle=True)
+        pca_pop = np.load("Results/PCA.npy", allow_pickle=True)
     except:
         print("Loading experiment training sets and flattening them into 1D arrays...")
         pca_pop = [[[convert_to_integer(lattice).ravel() for lattice in load_seed_set()]]]
         pca_pop += [
             [[convert_to_integer(lattice).ravel() for lattice in phase] for phase in load_training_set(experiment)] for
             experiment in experiments]
-        np.save("./PCA.npy", np.asarray(pca_pop))
+        np.save("Results/PCA.npy", np.asarray(pca_pop))
     pca.fit(list(flatten(list(flatten(pca_pop)))))
     return pca, pca_pop
 
@@ -501,10 +501,10 @@ if __name__ == '__main__':
     # np.save("Expressive.npy", diversity_dict)
     # novelty_spectrum(labels)
 
-    diversity_dict = np.load("Critic_Results_Intra.npy", allow_pickle=True).item()
+    diversity_dict = np.load("Results/Critic_Results_Intra.npy", allow_pickle=True).item()
     # diversity_dict = {}
     grid_plot(labels, novelty_critic, "Assigned Novelty", shareAxes=True, dict=diversity_dict)
-    np.save("Critic_Results_Intra.npy", diversity_dict)
+    np.save("Results/Critic_Results_Intra.npy", diversity_dict)
 
 
     """diversity_dict = np.load("Reconstruction.npy", allow_pickle=True).item()
