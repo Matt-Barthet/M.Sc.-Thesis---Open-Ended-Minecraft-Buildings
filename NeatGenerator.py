@@ -159,7 +159,7 @@ class NeatGenerator:
             np.savez_compressed(
                 "./Delenox_Experiment_Data/{}/Phase{:d}/Population_{:d}.npz".format(self.experiment, self.current_phase,
                                                                                     self.population_id), lattices)
-            for individual in range(np.min([best_fit_count, len(lattices)])):
+            for individual in range(np.min([best_fit_count, len(sorted_keys)])):
                 self.phase_best_fit.append(lattices[sorted_keys[-individual]])
 
         node_complexity = 0

@@ -88,35 +88,42 @@ def assess_quality(lattice):
         elif lattice[x][y][z] == 3:
             floor_count += 1
     """
+    interior_count = 0
+    total_count = 0
+
+    lattice = fill_tiny_gaps(lattice)
 
     try:
-        total_count = np.sum(lattice)
+
+        for (x, y, z) in value_range:
+            if lattice[x][y][z] == 0:
+                continue
+            total_count += 1
+            if lattice[x][y][z] == 1:
+                interior_count += 1
+
         if total_count == 0:
             raise InfeasibleVoxelCount
+
+        if interior_count / total_count < 0.3:
+            raise InfeasibleInteriorVolume
 
         lattice, entrance = place_entrance(lattice)
         if not entrance:
             raise InfeasibleEntrance
 
-        return lattice
-
-        """horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
+        horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
         width = (horizontal_bounds[1] - horizontal_bounds[0])
         height = vertical_bounds[1]
         depth = (depth_bounds[1] - depth_bounds[0])
         if width < 10 or height < 10 or depth < 10:
             raise InfeasibleBoundingBox
 
-        interior_count = 0
-        for (x, y, z) in value_range:
-            if lattice[x][y][z] == 1:
-                interior_count += 1
-        if interior_count / total_count < 0.3:
-            raise InfeasibleInteriorVolume
+        # iterative_flood_interior(lattice)
 
-        lattice = fill_tiny_gaps(lattice)
-        iterative_flood_interior(lattice)
+        return lattice
 
+        """
         lattice_stability, floor_stability = stability(lattice)
         if floor_stability > 6:
             raise InfeasibleLateralStability

@@ -10,10 +10,10 @@ if __name__ == '__main__':
 
     # To run an experiment - specify the following four parameters and an experiment title and run the main script
     static = False
-    noisy = True
+    noisy = False
     full_history = False
     random_ae = False
-    experiment = "Novelty Archive DAE"
+    experiment = "NA AE - Minimum BB + Interior Volume"
 
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
         os.makedirs('Delenox_Experiment_Data/{}'.format(experiment))
