@@ -49,11 +49,11 @@ def novelty_voxel_plot(lattices, generation, population_id, phase, experiment):
 
 def expressive_graph(fig, ax, x, y, title, x_label, y_label):
     if x_label == "Instability" and y_label == "Symmetry":
-        histogram, x_edges, y_edges = np.histogram2d(x=x, y=y, bins=[np.linspace(0, 8, 20), np.linspace(0, 0.7, 20)])
+        histogram, x_edges, y_edges = np.histogram2d(x=x, y=y, bins=[np.linspace(0, 8, 20), np.linspace(0, 1, 20)])
     if x_label == "Surface Area" and y_label == "Instability":
         histogram, x_edges, y_edges = np.histogram2d(x=x, y=y, bins=[np.linspace(0, 28, 20), np.linspace(0, 8, 20)])
     if x_label == "Surface Area" and y_label == "Symmetry":
-        histogram, x_edges, y_edges = np.histogram2d(x=x, y=y, bins=[np.linspace(0, 28, 20), np.linspace(0, 0.7, 20)])
+        histogram, x_edges, y_edges = np.histogram2d(x=x, y=y, bins=[np.linspace(0, 28, 20), np.linspace(0, 1, 20)])
 
     ax.set_title(title)
     pops = ax.imshow(np.transpose(histogram),
@@ -65,6 +65,7 @@ def expressive_graph(fig, ax, x, y, title, x_label, y_label):
                      vmin=0,
                      vmax=30)
     fig.colorbar(pops, ax=ax)
+
 
 def convert_to_integer(lattice):
     """

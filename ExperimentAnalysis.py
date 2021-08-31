@@ -78,7 +78,8 @@ def lattice_diversity(experiment, args=None):
         phase_diversities = []
         for population in range(len(experiment_population[phase])):
             print("Starting Experiment {} - Phase {} - Population {}".format(experiment, phase, population))
-            lattices = [softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in experiment_population[phase][population]]
+            lattices = [softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in
+                        experiment_population[phase][population]]
             results = [pool.apply_async(vector_entropy, (lattice, lattices)) for lattice in lattices]
             phase_diversities.append(np.mean([result.get() for result in results]))
         experiment_diversity.append(phase_diversities)
@@ -99,7 +100,8 @@ def diversity_from_humans(experiment, args=None):
         phase_diversities = []
         for population in range(len(experiment_population[phase])):
             print("Starting Experiment {} - Phase {} - Population {}".format(experiment, phase, population))
-            lattices = [softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in experiment_population[phase][population]]
+            lattices = [softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in
+                        experiment_population[phase][population]]
             results = [pool.apply_async(vector_entropy, (lattice, targets)) for lattice in lattices]
             phase_diversities.append(np.mean([result.get() for result in results]))
         experiment_diversity.append(phase_diversities)
@@ -247,16 +249,19 @@ def neat_metric(experiment, metric):
 
 def grid_plot(experiments, function, title, dict, args=None, shareAxes=True, normalize=False):
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 6.5), sharex=shareAxes, sharey=shareAxes)
+
     try:
         [baseline_means, baseline_ci] = dict['Static AE']
-        print ("Static AE data found!")
+        print("Static AE data found!")
     except:
-        print ("No data found, calculating new points")
+        print("No data found, calculating new points")
         baseline_means, baseline_ci = function(experiments[0], (args, 0))
+
     counter = 0
 
-    baseline_means /= np.max(baseline_means, axis=1)
-    baseline_ci /= np.max(baseline_ci, axis=1)
+    if normalize:
+        baseline_means /= np.max(baseline_means, axis=1)
+        baseline_ci /= np.max(baseline_ci, axis=1)
 
     for experiment in [(1,), (2, 3), (4, 5), (6, 7)]:
         axis = axes[locations[counter][0]][locations[counter][1]]
@@ -265,6 +270,11 @@ def grid_plot(experiments, function, title, dict, args=None, shareAxes=True, nor
                           y2=baseline_means - baseline_ci, color=colors[0], alpha=0.1)
         axis.set_title(labels[experiment[0]][:-3] + " Autoencoders", fontsize=12)
         for sub in range(len(experiment)):
+
+            if experiment[sub] != 1:
+                axis.set_yticks(range(20, 43, 4))
+                axis.set_ylim([20, 42])
+
             try:
                 [means, ci] = dict[labels[experiment[sub]]]
                 print("{} data found!".format(labels[experiment[sub]]))
@@ -272,14 +282,16 @@ def grid_plot(experiments, function, title, dict, args=None, shareAxes=True, nor
                 print("No data found for {}, calculating new points".format(labels[experiment[sub]]))
                 means, ci = function(experiments[experiment[sub]], (args, experiment[sub]))
 
-            means /= np.max(means)
-            ci /= np.max(ci)
+            if normalize:
+                means /= np.max(means)
+                ci /= np.max(ci)
 
             axis.errorbar(x=range(len(means)), y=means, label=ae_label[sub], color=colors[sub + 1])
             axis.fill_between(x=range(len(means)), y1=means + ci, y2=means - ci, color=colors[sub + 1], alpha=0.1)
         axis.grid()
         counter += 1
         handles, legendlabels = axis.get_legend_handles_labels()
+
     fig.legend(handles=handles, labels=legendlabels, fontsize=12, loc='lower center', ncol=6, )
     plt.setp(axes[-1, :], xlabel='Phase')
     plt.setp(axes[:, 0], ylabel=title)
@@ -311,7 +323,6 @@ def novelty_spectrum(labels):
         print("Starting Experiment {}".format(experiment))
 
         for i in range(10):
-            # phases = load_training_set(experiment)
             fig = draw_lines_fig(plt.figure(figsize=(12, 12)))
             fig.suptitle("Range of Generated Content - {}".format(experiment), fontsize=18)
 
@@ -344,17 +355,21 @@ def novelty_spectrum(labels):
 
                 sorted_keys = [k for k, _ in sorted(fitness.items(), key=lambda item: item[1])]
 
+                sorted_lattices = [original[key] for key in sorted_keys]
+                np.save("{}-{}-{}.npy".format(experiment, i, phase), sorted_lattices)
+
                 for number, plot in enumerate(np.linspace(len(sorted_keys) - 1, 0, 5, dtype=int)):
                     ax = fig.add_subplot(novelty_spectrum_subplots[int(phase / 2)][number][0],
                                          novelty_spectrum_subplots[int(phase / 2)][number][1],
                                          novelty_spectrum_subplots[int(phase / 2)][number][2], projection='3d')
 
-                    ax.voxels(original[sorted_keys[plot]], edgecolor="k", facecolors=get_color_map(original[sorted_keys[plot]], 'blue'))
+                    ax.voxels(original[sorted_keys[plot]], edgecolor="k",
+                              facecolors=get_color_map(original[sorted_keys[plot]], 'blue'))
                     ax.set_axis_off()
                     if phase == 1:
                         ax.text(-37, 0, -5, s=xlabels[number], fontsize=15)
                     if number == 4:
-                        ax.text(5, 3, -40, s='Phase {}'.format(phase+1), fontsize=15)
+                        ax.text(5, 3, -40, s='Phase {}'.format(phase + 1), fontsize=15)
             fig.show()
 
 
@@ -367,9 +382,9 @@ def symmetry(lattice, h_bound, v_bound, d_bound):
 
 
 def surface_ratio(lattice, h_bound, v_bound, d_bound):
-    width = (h_bound[1] - h_bound[0])
     height = v_bound[1]
     depth = (d_bound[1] - d_bound[0])
+    width = (h_bound[1] - h_bound[0])
 
     roof_count = 0
     walls = 0
@@ -437,7 +452,8 @@ def expressive_analysis(experiments, xlabel, ylabel, dict=None):
             phase = load_training_set(experiment)[-1]
             metric1, metric2 = expressive(phase, xlabel, ylabel)
             diversity_dict[experiment].update({xlabel: metric1, ylabel: metric2})
-        expressive_graph(fig, axes[locs[counter][0]][locs[counter][1]], x=metric1, y=metric2, title=experiment, x_label=xlabel, y_label=ylabel)
+        expressive_graph(fig, axes[locs[counter][0]][locs[counter][1]], x=metric1, y=metric2, title=experiment,
+                         x_label=xlabel, y_label=ylabel)
         counter += 1
 
     fig.subplots_adjust(bottom=0.15)
@@ -466,8 +482,36 @@ def novelty_critic(experiment, args=None):
     return means, ci
 
 
-if __name__ == '__main__':
+def compare_plot(experiments, function, title, dict, args=None):
+    plt.figure()
+    plt.title(title)
+    counter = 0
 
+    for experiment in experiments:
+        try:
+            [means, ci] = dict[experiment]
+            print("{} data found!".format(experiment))
+        except:
+            print("No data found for {}, calculating new points".format(experiment))
+            means, ci = function(experiment, (args, experiment))
+
+        ticks = [i for i in range(0, 1000, 99)]
+
+        plt.errorbar(x=ticks, y=means[ticks], label=experiment, color=colors[counter])
+        plt.fill_between(x=ticks, y1=means[ticks] + ci[ticks], y2=means[ticks] - ci[ticks], color=colors[counter],
+                         alpha=0.1)
+        counter += 1
+
+    plt.xlabel("Generations")
+    plt.ylabel("Frequency")
+    plt.xticks()
+    plt.legend(loc='lower right')
+    plt.grid()
+    plt.tight_layout()
+    plt.show()
+
+
+if __name__ == '__main__':
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
@@ -484,35 +528,42 @@ if __name__ == '__main__':
     ae_label = ['Vanilla AE', 'Denoising AE']
 
     pool = Pool(12)
-    labels = ["Static AE", "Random AE", "Full History AE", "Full History DAE", "Latest Set AE", "Latest Set DAE", "Novelty Archive AE", "Novelty Archive DAE"]
+    # labels = ["Novelty Archive AE", "NA AE - Minimum BB + Interior Volume"]
+    # labels = ["Full History AE", "Full History DAE", "Latest Set AE", "Latest Set DAE", "Novelty Archive AE", "Novelty Archive DAE"]
+    labels = ["Full History AE", "Full History DAE", "Latest Set AE", "Latest Set DAE", "Novelty Archive AE",
+              "Novelty Archive DAE"]
     colors = ['black', 'red', 'blue']
-    keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty"]
+    keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty",
+            "Infeasible Size"]
+    # keys = ["Infeasible Size"]
 
-    diversity_dict = np.load("Expressive.npy", allow_pickle=True).item()
-    expressive_analysis(labels, "Instability", "Symmetry", diversity_dict)
-    expressive_analysis(labels, "Surface Area", "Symmetry", diversity_dict)
-    expressive_analysis(labels, "Surface Area", "Instability", diversity_dict)
+    # for key in keys:
+    # compare_plot(labels, neat_metric, key, args=key, dict={})
+
+    # diversity_dict = np.load("Expressive.npy", allow_pickle=True).item()
+    # expressive_analysis(labels, "Instability", "Symmetry", diversity_dict)
+    # expressive_analysis(labels, "Surface Area", "Symmetry", diversity_dict)
+    # expressive_analysis(labels, "Surface Area", "Instability", diversity_dict)
     # np.save("Expressive.npy", diversity_dict)
 
     novelty_spectrum(labels)
 
-    diversity_dict = np.load("Results/Critic_Results_Intra.npy", allow_pickle=True).item()
-    grid_plot(labels, novelty_critic, "Assigned Novelty", shareAxes=True, dict=diversity_dict)
+    # diversity_dict = np.load("Results/Critic_Results_Intra.npy", allow_pickle=True).item()
+    # grid_plot(labels, novelty_critic, "Assigned Novelty", shareAxes=True, dict=diversity_dict)
     # np.save("Results/Critic_Results_Intra.npy", diversity_dict)
 
-
-    diversity_dict = np.load("Reconstruction.npy", allow_pickle=True).item()
-    grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", dict=diversity_dict, args=test_population(labels), shareAxes=False)
+    # diversity_dict = np.load("Reconstruction.npy", allow_pickle=True).item()
+    # grid_plot(labels, reconstruction_accuracy, "Reconstruction Error", dict=diversity_dict, args=test_population(labels), shareAxes=False)
     # np.save("Reconstruction.npy", diversity_dict)
 
     # grid_plot(labels, pca_graph, "Eucl. Diversity", args=pca_population(labels), shareAxes=True, dict={})
 
-    diversity_dict = np.load("Diversities_No_K.npy", allow_pickle=True).item()
-    grid_plot(labels, lattice_diversity, "Diversity", shareAxes=True, dict=diversity_dict)
+    # diversity_dict = np.load("Diversities_No_K.npy", allow_pickle=True).item()
+    # grid_plot(labels, lattice_diversity, "Diversity", shareAxes=True, dict=diversity_dict)
     # np.save("Diversities_No_K.npy", diversity_dict)
 
-    diversity_dict = np.load("Human_Diversity_No_K.npy", allow_pickle=True).item()
-    grid_plot(labels, diversity_from_humans, "Entropy", shareAxes=True, dict=diversity_dict)
+    # diversity_dict = np.load("Human_Diversity_No_K.npy", allow_pickle=True).item()
+    # grid_plot(labels, diversity_from_humans, "Entropy", shareAxes=True, dict=diversity_dict)
     # np.save("Human_Diversity_No_K.npy", diversity_dict)
 
     pool.close()

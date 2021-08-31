@@ -178,8 +178,8 @@ def bounding_box(lattice):
     """
     left_bound = 20
     right_bound = 0
-    near_bound = 20
-    far_bound = 0
+    near_bound = 0
+    far_bound = 20
     bottom_bound = 0
     top_bound = 0
     for (x, y, z) in value_range:
@@ -257,10 +257,10 @@ def footprint_ratios(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
 
 def height_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
     symmetry_count = 0
-    for x in range(horizontal_bounds[0], horizontal_bounds[1] + 1):
-        for y in range(depth_bounds[0], depth_bounds[1] + 1):
-            for z in range(vertical_bounds[0], int(vertical_bounds[1] / 2) + 1):
-                if lattice[x][y][z] > 1 and lattice[x][y][int(vertical_bounds[1] / 2) + z] > 1:
+    for x in range(horizontal_bounds[0], horizontal_bounds[1]):
+        for y in range(depth_bounds[0], depth_bounds[1]):
+            for z in range(vertical_bounds[0], int(vertical_bounds[1] / 2)):
+                if lattice[x][y][z] == lattice[x][y][int(vertical_bounds[1] / 2) + z]:
                     symmetry_count += 1
     return symmetry_count
 
@@ -268,9 +268,9 @@ def height_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
 def width_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
     symmetry_count = 0
     width = horizontal_bounds[1] - horizontal_bounds[0]
-    for x in range(horizontal_bounds[0], int(horizontal_bounds[1] / 2) + 1):
-        for y in range(depth_bounds[0], depth_bounds[1] + 1):
-            for z in range(vertical_bounds[0], vertical_bounds[1] + 1):
+    for x in range(horizontal_bounds[0], int(horizontal_bounds[1] / 2)):
+        for y in range(depth_bounds[0], depth_bounds[1]):
+            for z in range(vertical_bounds[0], vertical_bounds[1]):
                 if lattice[x][y][z] == lattice[int(width / 2) + x][y][z]:
                     symmetry_count += 1
     return symmetry_count
@@ -279,9 +279,9 @@ def width_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
 def depth_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
     symmetry_count = 0
     depth = depth_bounds[1] - depth_bounds[0]
-    for x in range(horizontal_bounds[0], horizontal_bounds[1] + 1):
-        for y in range(depth_bounds[0], int(depth_bounds[1] / 2) + 1):
-            for z in range(vertical_bounds[0], vertical_bounds[1] + 1):
+    for x in range(horizontal_bounds[0], horizontal_bounds[1]):
+        for y in range(depth_bounds[0], int(depth_bounds[1] / 2)):
+            for z in range(vertical_bounds[0], vertical_bounds[1]):
                 if lattice[x][y][z] == lattice[x][int(depth / 2) + y][z]:
                     symmetry_count += 1
     return symmetry_count
