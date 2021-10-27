@@ -91,7 +91,7 @@ def assess_quality(lattice):
     interior_count = 0
     total_count = 0
 
-    lattice = fill_tiny_gaps(lattice)
+    # lattice = fill_tiny_gaps(lattice)
 
     try:
 
@@ -105,19 +105,19 @@ def assess_quality(lattice):
         if total_count == 0:
             raise InfeasibleVoxelCount
 
-        if interior_count / total_count < 0.3:
-            raise InfeasibleInteriorVolume
+        # if interior_count / total_count < 0.3:
+            # raise InfeasibleInteriorVolume
 
         lattice, entrance = place_entrance(lattice)
         if not entrance:
             raise InfeasibleEntrance
 
-        horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
+        """horizontal_bounds, depth_bounds, vertical_bounds = bounding_box(lattice)
         width = (horizontal_bounds[1] - horizontal_bounds[0])
         height = vertical_bounds[1]
         depth = (depth_bounds[1] - depth_bounds[0])
         if width < 10 or height < 10 or depth < 10:
-            raise InfeasibleBoundingBox
+            raise InfeasibleBoundingBox"""
 
         # iterative_flood_interior(lattice)
 

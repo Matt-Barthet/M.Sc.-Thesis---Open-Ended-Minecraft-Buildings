@@ -131,7 +131,7 @@ class NeatGenerator:
 
         jobs.clear()
         for genome_id in compressed_population.keys():
-            parameters = (genome_id, compressed_population, self.archive)
+            parameters = (compressed_population[genome_id], compressed_population, self.archive)
             jobs.append(self.pool.apply_async(novelty_search, parameters))
         for job, genome_id in zip(jobs, compressed_population.keys()):
             self.population.population[genome_id].fitness = job.get()
@@ -156,9 +156,7 @@ class NeatGenerator:
                 self.current_gen + 1, self.population_id, self.current_phase, self.experiment)
 
         if self.current_gen + 1 == generations_per_run:
-            np.savez_compressed(
-                "./Delenox_Experiment_Data/{}/Phase{:d}/Population_{:d}.npz".format(self.experiment, self.current_phase,
-                                                                                    self.population_id), lattices)
+            np.savez_compressed("./Delenox_Experiment_Data/{}/Phase{:d}/Population_{:d}.npz".format(self.experiment, self.current_phase, self.population_id), lattices)
             for individual in range(np.min([best_fit_count, len(sorted_keys)])):
                 self.phase_best_fit.append(lattices[sorted_keys[-individual]])
 
@@ -205,12 +203,12 @@ def voxel_based_diversity(genome_id, lattice, lattices):
     return {genome_id: pixel_diversity}
 
 
-def novelty_search(genome_id, compressed_population, archive):
+def novelty_search(genome, compressed_population, archive):
     """
     Computes the novelty score for the given genome with respect to the current population and
     an archive of past novel individuals for this run. The score is the average euclidean distance
     to the nearest K neighbors (taken from the population and archive).
-    :param genome_id: the ID of the genome being assessed.
+    :param genome: the ID of the genome being assessed.
     :param compressed_population: the population of latent vectors to compare to.
     :param archive: the archive of past novel individuals for this run.
     :return: the novelty score for this genome.
@@ -218,10 +216,12 @@ def novelty_search(genome_id, compressed_population, archive):
     distances = []
     for neighbour in list(compressed_population.values()) + archive:
         distance = 0
+        if (genome == neighbour).all():
+            continue
         for element in range(len(neighbour)):
-            distance += np.square(compressed_population[genome_id][element] - neighbour[element])
+            distance += np.square(genome[element] - neighbour[element])
         distances.append(np.sqrt(distance))
-    distances = np.sort(distances)[1:]
+    distances = np.sort(distances)
     return np.round(np.average(distances[:k_nearest_neighbors]), 2)
 
 
@@ -242,7 +242,11 @@ def generate_lattice(genome, config, noise_flag=True, plot=None):
     for (x, y, z) in value_range:
         lattice[x][y][z] = np.round(
             net.activate((x / lattice_dimensions[0], y / lattice_dimensions[0], z / lattice_dimensions[0]))[0])
+
+    # voxel_plot(lattice, "")
     feasible, lattice = apply_constraints(lattice)
+    # voxel_plot(lattice, "")
+
     if noise_flag:
         noisy = add_noise(lattice)
     if plot is not None:

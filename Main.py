@@ -13,7 +13,7 @@ if __name__ == '__main__':
     noisy = False
     full_history = False
     random_ae = False
-    experiment = "NA AE - Minimum BB + Interior Volume"
+    experiment = "NA-AE"
 
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
         os.makedirs('Delenox_Experiment_Data/{}'.format(experiment))
