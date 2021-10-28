@@ -1,5 +1,3 @@
-from multiprocessing.pool import Pool
-from tensorflow.python.keras.utils.np_utils import to_categorical
 from Autoencoder import add_noise, convert_to_integer, load_model, create_auto_encoder, auto_encoder_3d
 from Constraints import *
 from Delenox_Config import *
@@ -29,21 +27,16 @@ class NeatGenerator:
         self.archive = []
         self.phase_best_fit = []
         self.archive_lattices = []
-        self.neat_metrics = {'Experiment': None, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [], 'Infeasible Size': [],
-                             'Connection Complexity': [], 'Archive Size': [], 'Species Count': []}
+        self.neat_metrics = {'Experiment': None, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [],
+                             'Infeasible Size': [], 'Connection Complexity': [], 'Archive Size': [],
+                             'Species Count': []}
 
-    def run_neat(self, phase_number, p_experiment, static=False, noise=False, persistent_archive=True):
+    def run_neat(self, phase_number, p_experiment, static=False, noise=False, persistent_archive=True, train_on_archive=True):
         """
         Executes one "exploration" phase of the Delenox pipeline.  A set number of independent evolutionary runs
         are completed and the top N most novel individuals are taken and inserted into a population.  At the of
         the phase we look at the distribution of individuals in the population according to numerous metrics and
         statistics regarding the evolution of the populations such as the speciation, novelty scores etc.
-        :param persistent_archive:
-        :param noise:
-        :param p_experiment:
-        :param static:
-        :param phase_number:
-        :return: the generated population of lattices and statistics variables from the runs of the phase.
         """
         # Check to see if we should clear the novelty archive before starting the next phase.
         if not persistent_archive:
@@ -73,7 +66,6 @@ class NeatGenerator:
                 self.decoder = load_model("./Delenox_Experiment_Data/Seed/decoder_noisy")
 
         # Update the archive of latent vectors with the current encoder's interpretation of the lattices
-        print("Updating Archive with New Encoder")
         self.archive = []
         for lattice in self.archive_lattices:
             self.archive.append(self.encoder.predict(lattice[None])[0])
@@ -94,8 +86,10 @@ class NeatGenerator:
         self.encoder = None
         self.decoder = None
 
-        # return self, self.phase_best_fit, self.neat_metrics
-        return self, self.archive_lattices, self.neat_metrics
+        if train_on_archive:
+            return self, self.archive_lattices, self.neat_metrics
+        else:
+            return self, self.phase_best_fit, self.neat_metrics
 
     def run_one_generation(self, genomes, config):
         """
@@ -103,8 +97,6 @@ class NeatGenerator:
         scales the workload across the thread count given in the experiment parameters. Assigns a novelty
         value to each genome and keeps the feasible population separate, discarding and randomly regenerating
         the infeasible individuals.
-        :param genomes: population of genomes to be evaluated.
-        :param config: the NEAT-Python configuration file.
         """
         start = time.time()
         compressed_population = {}
@@ -188,21 +180,6 @@ class NeatGenerator:
         self.current_gen += 1
 
 
-def voxel_based_diversity(genome_id, lattice, lattices):
-    """
-    :param genome_id:
-    :param lattice:
-    :param lattices:
-    :return:
-    """
-    pixel_diversity = 0
-    for compare in lattices:
-        for (x, y, z) in value_range:
-            if lattice[x][y][z].all() != compare[x][y][z].all():
-                pixel_diversity += 1
-    return {genome_id: pixel_diversity}
-
-
 def novelty_search(genome, compressed_population, archive):
     """
     Computes the novelty score for the given genome with respect to the current population and
@@ -242,11 +219,7 @@ def generate_lattice(genome, config, noise_flag=True, plot=None):
     for (x, y, z) in value_range:
         lattice[x][y][z] = np.round(
             net.activate((x / lattice_dimensions[0], y / lattice_dimensions[0], z / lattice_dimensions[0]))[0])
-
-    # voxel_plot(lattice, "")
     feasible, lattice = apply_constraints(lattice)
-    # voxel_plot(lattice, "")
-
     if noise_flag:
         noisy = add_noise(lattice)
     if plot is not None:
@@ -259,13 +232,6 @@ def generate_lattice(genome, config, noise_flag=True, plot=None):
 
 
 def generate_lattices(genomes, config, noise_flag=True):
-    """
-
-    :param noise_flag:
-    :param genomes:
-    :param config:
-    :return:
-    """
     pool = Pool(thread_count)
     jobs = []
     lattices = []
@@ -338,43 +304,22 @@ def create_seed_files(config):
             pickle.dump(generator, f)
 
 
+def load_config_file():
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, 'neat.cfg')
+    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet,
+                         neat.DefaultStagnation, config_path)
+    config.genome_config.add_activation('sin_adjusted', sinc)
+    return config
+
+
 if __name__ == "__main__":
 
-    seed = np.load("Delenox_Experiment_Data/Seed/Initial_Training_Set.npz")
-    _ = create_auto_encoder(model_type=auto_encoder_3d,
-                            phase=-1,
-                            population=seed,
-                            noisy=add_noise(seed),
-                            experiment="Seed")
-    exit(0)
-    experiments = [
-        "No Constraints",
-        "Entrance Required",
-        "Lateral Stability",
-        "Minimum Bounding Box",
-        "Traversable Interior",
-        "Minimum Interior Ratio",
-        "MBB + LS",
-        "MBB + TI",
-        "MIR + TI",
-        "All Constraints"
-    ]
+    config2 = load_config_file()
+    test_generator2 = NeatGenerator(config2, 1)
+    test_generator2.config.species_set_config.__setattr__("compatibility_threshold", 2)
+    test_generator2.run_neat(0, "Test_Run")
 
-    # Name of the experiment, also used as the name of the directory used to store results.
-    experiment = experiments[9]
+    # test_generator.config.__setattr__("compatibility_threshold", population_size)
 
-    # If this experiment hasn't been run yet, create the required directories.
-    if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
-        os.makedirs('Delenox_Experiment_Data/{}'.format(experiment))
-        os.makedirs('Delenox_Experiment_Data/{}/Phase0'.format(experiment))
 
-    # Take the first generator from the seed folder and use that to run the experiment
-    generator = pickle.load(open("Delenox_Experiment_Data/Seed/Neat_Population_0.pkl", "rb"))
-    (generator, best_fit, metrics) = generator.run_neat(0, experiment, False)
-
-    # Save the metrics to a numpy file for later extraction
-    np.savez_compressed('Delenox_Experiment_Data/{}/Metrics.npz'.format(experiment), metrics)
-
-    # Save the neat population to pickle file in the experiment folder
-    with open("Delenox_Experiment_Data/{}/Neat_Population.pkl".format(experiment), "wb+") as f:
-        pickle.dump(generator, f)

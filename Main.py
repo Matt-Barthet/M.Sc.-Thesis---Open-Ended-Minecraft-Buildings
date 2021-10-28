@@ -1,5 +1,3 @@
-import bz2
-import matplotlib.pyplot as plt
 from Autoencoder import auto_encoder_3d, create_auto_encoder, add_noise_parallel
 from Delenox_Config import *
 from NeatGenerator import NeatGenerator

@@ -1,10 +1,6 @@
-import numpy as np
-from scipy.ndimage import center_of_mass
-from scipy.spatial import distance
-from Delenox_Config import lattice_dimensions, value_range
+from Delenox_Config import *
 from Visualization import voxel_plot
-
-materials = {'External_Space': 0, 'Interior_Space': 1, 'Wall': 2, 'Floor': 3, 'Roof': 4}
+from ErrorHandling import *
 
 door_frames_ew = [
     np.array([[[3, 2, 2, 2], [3, 2, 2, 2], [3, 2, 2, 2]], [[3, 1, 1, 1], [3, 1, 1, 1], [3, 1, 1, 1]]]),
@@ -15,39 +11,6 @@ door_frames_ns = [
     np.array([[[3, 2, 2, 2], [3, 1, 1, 1]], [[3, 2, 2, 2], [3, 1, 1, 1]], [[3, 2, 2, 2], [3, 1, 1, 1]]]),
     np.array([[[3, 1, 1, 1], [3, 2, 2, 2]], [[3, 1, 1, 1], [3, 2, 2, 2]], [[3, 1, 1, 1], [3, 2, 2, 2]]])
 ]
-
-
-if __name__ == "__main__":
-    voxel_plot(door_frames_ns[0], "")
-    voxel_plot(door_frames_ew[1], "")
-
-
-class InfeasibleError(Exception):
-    pass
-
-
-class InfeasibleRoof(Exception):
-    pass
-
-
-class InfeasibleEntrance(Exception):
-    pass
-
-
-class InfeasibleVoxelCount(Exception):
-    pass
-
-
-class InfeasibleBoundingBox(Exception):
-    pass
-
-
-class InfeasibleInteriorVolume(Exception):
-    pass
-
-
-class InfeasibleLateralStability(Exception):
-    pass
 
 
 def apply_constraints(lattice):
@@ -172,10 +135,6 @@ def place_entrance(lattice):
 
 
 def bounding_box(lattice):
-    """
-    :param lattice:
-    returns:
-    """
     left_bound = 20
     right_bound = 0
     near_bound = 0
@@ -491,7 +450,3 @@ def change_to_ones(input_lattice, keep_interior=False):
                 elif not keep_interior:
                     input_lattice[i][j][k] = 0
     return input_lattice
-
-if __name__ == "__main__":
-    human_population = np.load("Real-World Datasets/Ahousev5_Buildings_Fixed.npy", allow_pickle=True)
-    voxel_plot(identify_materials(human_population[1]), "")

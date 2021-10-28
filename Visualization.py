@@ -1,10 +1,9 @@
-import time
 import matplotlib.pyplot as plt
 import numpy as np
-
-from Delenox_Config import current_run, runs_per_phase
+from Delenox_Config import runs_per_phase
 from mpl_toolkits.mplot3d import axes3d, Axes3D
 from Delenox_Config import lattice_dimensions
+
 
 def plot_statistics(values, confidence, key, phase):
     plt.figure()
@@ -33,6 +32,7 @@ def voxel_plot(lattice, title, filename=None, color_one='blue'):
     else:
         plt.show()
 
+
 def novelty_voxel_plot(lattices, generation, population_id, phase, experiment):
     fig = plt.figure(figsize=(15, 6))
     fig.tight_layout(pad=3)
@@ -44,7 +44,6 @@ def novelty_voxel_plot(lattices, generation, population_id, phase, experiment):
         ax = fig.gca(projection='3d')
         ax.voxels(lattices[number - 1], edgecolor="k", facecolors=get_color_map(lattices[number - 1]))
     plt.savefig("./Delenox_Experiment_Data/{}/Phase{}/Lattices_{:d}_Gen{:d}.png".format(experiment, phase, population_id, generation))
-    # plt.show()
 
 
 def expressive_graph(fig, ax, x, y, title, x_label, y_label):
@@ -68,12 +67,6 @@ def expressive_graph(fig, ax, x, y, title, x_label, y_label):
 
 
 def convert_to_integer(lattice):
-    """
-    Convert material lattice from one-hot representation to integer encoding representation.
-
-    :param lattice: lattice of one-hot material vectors.
-    :return: lattice of integer material codes.
-    """
     integer_reconstruct = np.zeros(lattice_dimensions)
     for channel in range(20):
         for row in range(20):
@@ -132,12 +125,6 @@ def get_color_map(lattice, color_one='blue'):
 
 
 def visualize_training(history, phase, experiment):
-    """
-
-    :param experiment:
-    :param history:
-    :param phase:
-    """
     plt.figure()
     plt.plot(history.history['categorical_accuracy'])
     plt.plot(history.history['val_categorical_accuracy'])

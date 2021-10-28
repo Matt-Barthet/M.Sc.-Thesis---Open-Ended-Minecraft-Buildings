@@ -3,10 +3,19 @@ import os
 import tensorflow as tf
 import neat
 import pickle
+import bz2
+import matplotlib.pyplot as plt
+from multiprocessing.pool import Pool
+from tensorflow.python.keras.utils.np_utils import to_categorical
+from scipy.ndimage import center_of_mass
+from scipy.spatial import distance
+import time
+
 
 def sinc(x):
     x = max(-60.0, min(60.0, 5.0 * x))
     return (np.sin(x) + 1) / 2
+
 
 # General Parameters
 thread_count = 16
@@ -15,7 +24,8 @@ number_of_phases = 11
 # Parameters for input space of un/compressed buildings
 lattice_dimensions = (20, 20, 20)
 activations = np.linspace(0, 1, lattice_dimensions[0])
-value_range = [(x, y, z) for x in range(lattice_dimensions[0]) for y in range(lattice_dimensions[0]) for z in range(lattice_dimensions[0])]
+value_range = [(x, y, z) for x in range(lattice_dimensions[0]) for y in range(lattice_dimensions[0]) for z in
+               range(lattice_dimensions[0])]
 
 # Auto-Encoder parameters for architecture and learning
 batch_size = 64
@@ -39,10 +49,6 @@ add_to_archive = 2
 latent_mutation_rate = 0.1
 latent_variable_range = [-250, 250]
 
-# Load configuration file according to the given path and setting relevant parameters.
-local_dir = os.path.dirname(__file__)
-config_path = os.path.join(local_dir, 'neat.cfg')
-config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet,
-                     neat.DefaultStagnation, config_path)
-config.genome_config.add_activation('sin_adjusted', sinc)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+materials = {'External_Space': 0, 'Interior_Space': 1, 'Wall': 2, 'Floor': 3, 'Roof': 4}
