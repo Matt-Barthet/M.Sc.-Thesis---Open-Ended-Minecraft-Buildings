@@ -44,6 +44,9 @@ class NeatGenerator:
             self.archive = []
             self.archive_lattices.clear()
 
+        if phase_number == 0:
+            self.config = load_config_file()
+
         # Re-initialize phase variables accordingly
         self.phase_best_fit.clear()
         self.current_gen = 0
@@ -188,7 +191,7 @@ class NeatGenerator:
         if len(self.population.species.species) < target_species_count:
             self.config.species_set_config.__setattr__("compatibility_threshold", current_compatibility - 0.05)
         elif len(self.population.species.species) > target_species_count:
-            self.config.species_set_config.__setattr__("compatibility_threshold", current_compatibility + 0.01)
+            self.config.species_set_config.__setattr__("compatibility_threshold", current_compatibility + 0.05)
 
         print(self.config.species_set_config.compatibility_threshold)
 
@@ -331,7 +334,7 @@ def load_config_file():
 if __name__ == "__main__":
 
     config2 = load_config_file()
-    test_generator2 = NeatGenerator(config2, 1)
+    test_generator2 = NeatGenerator(config2, 3)
     test_generator2.run_neat(0, "Test_Run")
 
     # test_generator.config.__setattr__("compatibility_threshold", population_size)
