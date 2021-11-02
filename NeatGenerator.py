@@ -29,7 +29,8 @@ class NeatGenerator:
         self.archive_lattices = []
         self.neat_metrics = {'Experiment': None, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [],
                              'Infeasible Size': [], 'Connection Complexity': [], 'Archive Size': [],
-                             'Species Count': []}
+                             'Species Count': [], 'Mean Genetic Diversity': [],
+                             'Minimum Species Size': [], 'Maximum Species Size': [], 'Mean Species Size': []}
 
     def run_neat(self, phase_number, p_experiment, static=False, noise=False, persistent_archive=True, train_on_archive=True):
         """
@@ -161,12 +162,16 @@ class NeatGenerator:
 
         node_complexity /= len(self.population.population)
         connection_complexity /= len(self.population.population)
+        species_sizes = [len(specie.members) for specie in self.population.species.species.values() ]
 
         self.neat_metrics['Node Complexity'].append(node_complexity)
         self.neat_metrics['Connection Complexity'].append(connection_complexity)
         self.neat_metrics['Archive Size'].append(len(self.archive))
         self.neat_metrics['Species Count'].append(len(self.population.species.species))
         self.neat_metrics['Infeasible Size'].append(remove)
+        self.neat_metrics['Minimum Species Size'].append(np.min(species_sizes))
+        self.neat_metrics['Maximum Species Size'].append(np.max(species_sizes))
+        self.neat_metrics['Mean Species Size'].append(np.mean(species_sizes))
 
         print("[Population {:d}]: Generation {:d} took {:2f} seconds.".format(self.population_id, self.current_gen, time.time() - start))
         print("Average Hidden Layer Size: {:2.2f}".format(node_complexity))
@@ -176,6 +181,16 @@ class NeatGenerator:
         print("Number of Species:", len(self.population.species.species))
         print("Max Novelty:", fitness[sorted_keys[-1]])
         print("Mean Novelty:", np.mean(list(fitness.values())), "\n")
+        print("Species Sizes:", species_sizes)
+
+        current_compatibility = self.config.species_set_config.compatibility_threshold
+
+        if len(self.population.species.species) < target_species_count:
+            self.config.species_set_config.__setattr__("compatibility_threshold", current_compatibility - 0.05)
+        elif len(self.population.species.species) > target_species_count:
+            self.config.species_set_config.__setattr__("compatibility_threshold", current_compatibility + 0.01)
+
+        print(self.config.species_set_config.compatibility_threshold)
 
         self.current_gen += 1
 
@@ -317,7 +332,6 @@ if __name__ == "__main__":
 
     config2 = load_config_file()
     test_generator2 = NeatGenerator(config2, 1)
-    test_generator2.config.species_set_config.__setattr__("compatibility_threshold", 2)
     test_generator2.run_neat(0, "Test_Run")
 
     # test_generator.config.__setattr__("compatibility_threshold", population_size)
