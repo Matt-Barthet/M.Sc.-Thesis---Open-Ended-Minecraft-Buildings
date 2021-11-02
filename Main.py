@@ -11,7 +11,8 @@ if __name__ == '__main__':
     noisy = False
     full_history = False
     random_ae = False
-    experiment = "NA-AE (fixed novelty)"
+    train_on_archive = True
+    experiment = "Novelty Archive AE"
 
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
         os.makedirs('Delenox_Experiment_Data/{}'.format(experiment))
@@ -50,7 +51,7 @@ if __name__ == '__main__':
             if os.path.exists('Delenox_Experiment_Data/{}/Phase{:d}/Neat_Population_{:d}.bz2'.format(experiment, phase, number)):
                 continue
 
-            generator, best_fit, metrics = neat_generators[number].run_neat(phase, experiment, static, noise=noisy)
+            generator, best_fit, metrics = neat_generators[number].run_neat(phase, experiment, static, noise=noisy, train_on_archive=train_on_archive)
             training_population += list(best_fit)
 
             # Save the neat populations to pickle files in the current phase folder
