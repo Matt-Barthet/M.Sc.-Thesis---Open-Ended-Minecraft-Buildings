@@ -23,17 +23,21 @@ if __name__ == '__main__':
 
         if not os.path.exists('Delenox_Experiment_Data/{}/Phase{:d}'.format(experiment, phase)):
             os.makedirs('Delenox_Experiment_Data/{}/Phase{:d}'.format(experiment, phase))
-            neat_metrics = {'Experiment': experiment, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [], 'Connection Complexity': [],
-                            'Archive Size': [], 'Species Count': [], 'Infeasible Size': []}
+            neat_metrics = {'Experiment': experiment, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [],
+                                 'Infeasible Size': [], 'Connection Complexity': [], 'Archive Size': [],
+                                 'Species Count': [], 'Mean Genetic Diversity': [],
+                                 'Minimum Species Size': [], 'Maximum Species Size': [], 'Mean Species Size': []}
             training_population = []
         else:
             try:
                 neat_metrics = np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npz".format(experiment, phase), allow_pickle=True)['arr_0'].item()
                 training_population = list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, phase), allow_pickle=True)['arr_0'])
             except FileNotFoundError:
-                neat_metrics = {'Experiment': experiment, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [],
-                                'Connection Complexity': [],
-                                'Archive Size': [], 'Species Count': [], 'Infeasible Size': []}
+                neat_metrics = {'Experiment': experiment, 'Mean Novelty': [], 'Best Novelty': [],
+                                     'Node Complexity': [],
+                                     'Infeasible Size': [], 'Connection Complexity': [], 'Archive Size': [],
+                                     'Species Count': [], 'Mean Genetic Diversity': [],
+                                     'Minimum Species Size': [], 'Maximum Species Size': [], 'Mean Species Size': []}
                 training_population = []
 
         neat_generators = []

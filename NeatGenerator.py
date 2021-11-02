@@ -46,6 +46,7 @@ class NeatGenerator:
 
         if phase_number == 0:
             self.config = load_config_file()
+            self.__init__(self.config, self.population_id)
 
         # Re-initialize phase variables accordingly
         self.phase_best_fit.clear()
@@ -182,18 +183,15 @@ class NeatGenerator:
         print("Size of the Novelty Archive: {:d}".format(len(self.archive)))
         print("Number of Infeasible Buildings:", remove)
         print("Number of Species:", len(self.population.species.species))
+        print("Species Sizes:", species_sizes)
         print("Max Novelty:", fitness[sorted_keys[-1]])
         print("Mean Novelty:", np.mean(list(fitness.values())), "\n")
-        print("Species Sizes:", species_sizes)
 
         current_compatibility = self.config.species_set_config.compatibility_threshold
-
         if len(self.population.species.species) < target_species_count:
             self.config.species_set_config.__setattr__("compatibility_threshold", current_compatibility - 0.05)
         elif len(self.population.species.species) > target_species_count:
             self.config.species_set_config.__setattr__("compatibility_threshold", current_compatibility + 0.05)
-
-        print(self.config.species_set_config.compatibility_threshold)
 
         self.current_gen += 1
 

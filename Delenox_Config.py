@@ -18,7 +18,7 @@ def sinc(x):
 
 
 # General Parameters
-thread_count = 12
+thread_count = 16
 number_of_phases = 10
 target_species_count = 10
 
