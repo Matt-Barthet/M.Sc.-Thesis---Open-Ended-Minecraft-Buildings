@@ -24,20 +24,23 @@ if __name__ == '__main__':
         if not os.path.exists('Delenox_Experiment_Data/{}/Phase{:d}'.format(experiment, phase)):
             os.makedirs('Delenox_Experiment_Data/{}/Phase{:d}'.format(experiment, phase))
             neat_metrics = {'Experiment': experiment, 'Mean Novelty': [], 'Best Novelty': [], 'Node Complexity': [],
-                                 'Infeasible Size': [], 'Connection Complexity': [], 'Archive Size': [],
-                                 'Species Count': [], 'Mean Genetic Diversity': [],
-                                 'Minimum Species Size': [], 'Maximum Species Size': [], 'Mean Species Size': []}
+                            'Infeasible Size': [], 'Connection Complexity': [], 'Archive Size': [],
+                            'Species Count': [], 'Mean Genetic Diversity': [],
+                            'Minimum Species Size': [], 'Maximum Species Size': [], 'Mean Species Size': []}
             training_population = []
         else:
             try:
-                neat_metrics = np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npz".format(experiment, phase), allow_pickle=True)['arr_0'].item()
-                training_population = list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, phase), allow_pickle=True)['arr_0'])
+                neat_metrics = np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npz".format(experiment, phase),
+                                       allow_pickle=True)['arr_0'].item()
+                training_population = list(
+                    np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, phase),
+                            allow_pickle=True)['arr_0'])
             except FileNotFoundError:
                 neat_metrics = {'Experiment': experiment, 'Mean Novelty': [], 'Best Novelty': [],
-                                     'Node Complexity': [],
-                                     'Infeasible Size': [], 'Connection Complexity': [], 'Archive Size': [],
-                                     'Species Count': [], 'Mean Genetic Diversity': [],
-                                     'Minimum Species Size': [], 'Maximum Species Size': [], 'Mean Species Size': []}
+                                'Node Complexity': [],
+                                'Infeasible Size': [], 'Connection Complexity': [], 'Archive Size': [],
+                                'Species Count': [], 'Mean Genetic Diversity': [],
+                                'Minimum Species Size': [], 'Maximum Species Size': [], 'Mean Species Size': []}
                 training_population = []
 
         neat_generators = []
@@ -47,23 +50,30 @@ if __name__ == '__main__':
                     neat_generators.append(pickle.load(file))
         else:
             for runs in range(runs_per_phase):
-                with bz2.BZ2File("Delenox_Experiment_Data/{}/Phase{:d}/Neat_Population_{:d}.bz2".format(experiment, phase-1, runs), "rb") as file:
+                with bz2.BZ2File(
+                        "Delenox_Experiment_Data/{}/Phase{:d}/Neat_Population_{:d}.bz2".format(experiment, phase - 1,
+                                                                                               runs), "rb") as file:
                     neat_generators.append(pickle.load(file))
 
         for number in range(len(neat_generators)):
 
-            if os.path.exists('Delenox_Experiment_Data/{}/Phase{:d}/Neat_Population_{:d}.bz2'.format(experiment, phase, number)):
+            if os.path.exists(
+                    'Delenox_Experiment_Data/{}/Phase{:d}/Neat_Population_{:d}.bz2'.format(experiment, phase, number)):
                 continue
 
-            generator, best_fit, metrics = neat_generators[number].run_neat(phase, experiment, static, noise=noisy, train_on_archive=train_on_archive)
+            generator, best_fit, metrics = neat_generators[number].run_neat(phase, experiment, static, noise=noisy,
+                                                                            train_on_archive=train_on_archive)
             training_population += list(best_fit)
 
             # Save the neat populations to pickle files in the current phase folder
-            with bz2.BZ2File("./Delenox_Experiment_Data/{}/Phase{:d}/Neat_Population_{:d}.bz2".format(experiment, phase, number), 'wb') as compressed_file:
+            with bz2.BZ2File(
+                    "./Delenox_Experiment_Data/{}/Phase{:d}/Neat_Population_{:d}.bz2".format(experiment, phase, number),
+                    'wb') as compressed_file:
                 pickle.dump(generator, compressed_file)
 
             # Save the latest additions to the novel population to a numpy file
-            np.savez_compressed("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, phase), np.asarray(training_population))
+            np.savez_compressed("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, phase),
+                                np.asarray(training_population))
 
             # Update the metrics dictionary with this phase' results
             for key in metrics.keys():
@@ -75,9 +85,11 @@ if __name__ == '__main__':
                     pass
 
             # Save the latest metrics to a numpy file for later extraction
-            np.savez_compressed("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npz".format(experiment, phase), neat_metrics)
+            np.savez_compressed("./Delenox_Experiment_Data/{}/Phase{:d}/Metrics.npz".format(experiment, phase),
+                                neat_metrics)
 
-        if not static and not os.path.exists('Delenox_Experiment_Data/{}/Phase{:d}/encoder.json'.format(experiment, phase)):
+        if not static and not os.path.exists(
+                'Delenox_Experiment_Data/{}/Phase{:d}/encoder.json'.format(experiment, phase)):
             training_history = []
 
             if not full_history:
@@ -86,7 +98,9 @@ if __name__ == '__main__':
                 start = 0
 
             for rewind in range(start, phase + 1):
-                training_history += list(np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, rewind))['arr_0'])
+                training_history += list(
+                    np.load("./Delenox_Experiment_Data/{}/Phase{:d}/Training_Set.npz".format(experiment, rewind))[
+                        'arr_0'])
 
             if noisy:
                 noisy_population = add_noise_parallel(np.asarray(training_history))

@@ -20,7 +20,7 @@ def sinc(x):
 # General Parameters
 thread_count = 16
 number_of_phases = 10
-target_species_count = 10
+target_species_count = 5
 
 # Parameters for input space of un/compressed buildings
 lattice_dimensions = (20, 20, 20)
