@@ -76,7 +76,7 @@ if __name__ == '__main__':
                                 np.asarray(training_population))
 
             # Update the metrics dictionary with this phase' results
-            for key in metrics.keys():
+            for key in metrics.neat_keys():
                 try:
                     neat_metrics[key].append(metrics[key])
                 except KeyError:

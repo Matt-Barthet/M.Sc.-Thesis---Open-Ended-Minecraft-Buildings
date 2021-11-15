@@ -14,6 +14,14 @@ from Constraints import *
 from NeatGenerator import novelty_search, generate_lattice, NeatGenerator, load_config_file
 from Visualization import get_color_map, expressive_graph
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+flatten = itertools.chain.from_iterable
+plt.rcParams['image.cmap'] = 'viridis'
+plt.rcParams["font.family"] = "Times New Roman"
+plt.rc('axes', labelsize=12)
+
+
 
 def load_training_set(label):
     return [list(
@@ -82,37 +90,6 @@ def novelty(vector, compressed_population):
     return np.round(np.average(distances), 2)
 
 
-def lattice_diversity(experiment, args=None):
-    seed_populations = load_seed_pops()
-    experiment_population = load_populations(experiment)
-    experiment_diversity = []
-
-    seed_diversity = []
-    for population in range(len(seed_populations)):
-        print("Starting Experiment {} - Seed - Population {}".format(experiment, population))
-        lattices = [softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in seed_populations[population]]
-        results = [pool.apply_async(vector_entropy, (vector, lattices)) for vector in lattices]
-        diversity = np.mean([result.get() for result in results])
-        seed_diversity.append(diversity)
-    experiment_diversity.append(seed_diversity)
-
-    for phase in range(len(experiment_population)):
-        phase_diversities = []
-        # model = load_autoencoder(experiment, phases_to_evaluate - 1)[0]
-        for population in range(len(experiment_population[phase])):
-            print("Starting Experiment {} - Phase {} - Population {}".format(experiment, phase, population))
-            lattices = [softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in experiment_population[phase][population]]
-            # lattices = [model.predict(lattice[None])[0] for lattice in experiment_population[phase][population]]
-            results = [pool.apply_async(vector_entropy, (vector, lattices)) for vector in lattices]
-            diversity = np.mean([result.get() for result in results])
-            phase_diversities.append(diversity)
-        experiment_diversity.append(phase_diversities)
-    means = np.mean(experiment_diversity, axis=1)
-    ci = np.std(experiment_diversity, axis=1) / np.sqrt(10) * 1.96
-    diversity_dict.update({experiment: [means, ci]})
-    return range(len(means)), means, ci
-
-
 def matrix_set(experiments):
 
     results = {label: {} for label in experiments}
@@ -163,22 +140,28 @@ def generate_seed():
 
 
 def diversity_from_target(experiment, args=None):
-    experiment_population = load_populations(experiment)
-    experiment_diversity = [[0] * len(experiment_population)]
+    experiment_populations = load_seed_pops() + load_populations(experiment)
+    experiment_diversity = []
 
-    for phase in range(len(experiment_population)):
+    # If the target population given is already sorted into individual populations.
+    if len(args[0]) == runs_per_phase:
+        targets = [[softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in args[0][population]] for population in runs_per_phase]
+    # Otherwise if a single population is given, duplicate it the required number of times.
+    else:
+        targets = [softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in args[0] * runs_per_phase]
+
+    for phase in range(len(experiment_populations)):
         phase_diversities = []
-        target = [args[0]]*len(experiment_population[phase])
-        for population in range(len(experiment_population[phase])):
-            targets = [softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in target[population]]
+        for population in range(len(experiment_populations[phase])):
             print("Starting Experiment {} - Phase {} - Population {}".format(experiment, phase, population))
-            lattices = [softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in experiment_population[phase][population]]
+
+            lattices = [softmax(np.asarray(lattice, dtype='float')).ravel() for lattice in experiment_populations[phase][population]]
             results = [pool.apply_async(vector_entropy, (lattice, targets)) for lattice in lattices]
             phase_diversities.append(np.mean([result.get() for result in results]))
         experiment_diversity.append(phase_diversities)
+
     means = np.mean(experiment_diversity, axis=1)
     ci = np.std(experiment_diversity, axis=1) / np.sqrt(10) * 1.96
-    diversity_dict.update({experiment: [means, ci]})
     return range(len(means)), means, ci
 
 
@@ -381,6 +364,8 @@ def surface_ratio(lattice, h_bound, v_bound, d_bound):
     height = v_bound[1]
     depth = (d_bound[1] - d_bound[0])
     width = (h_bound[1] - h_bound[0])
+    bb_area = 2 * (depth*width + depth*height + width*height)
+    bb_volume = width * depth * height
 
     roof_count = 0
     walls = 0
@@ -400,18 +385,22 @@ def surface_ratio(lattice, h_bound, v_bound, d_bound):
         elif lattice[x][y][z] == 4:
             roof_count += 1
 
-    voxel_count = (walls + roof_count + floor_count)
-    bounding_box_area = 2 * (depth*width + depth*height + width*height)
     try:
-        return voxel_count / bounding_box_area
+        surface_area = (walls + roof_count + floor_count) / total_count
+        floor_count /= total_count
+        walls /= total_count
+        roof_count /= total_count
+        volume_vs_bb = total_count / bb_volume
+        bb_vs_total = bb_volume / lattice_dimensions[0] ** 3
+        return {"Surface Area": [surface_area], "Floor": [floor_count], "Walls": [walls], "Roof": [roof_count],
+                "Building vs BB Volume Ratio": [volume_vs_bb], "BB vs Total Volume Ratio": [bb_vs_total]}
     except ZeroDivisionError:
-        print(voxel_count)
-        print(bounding_box_area)
+        print("Empty Lattice Found")
         return 0
 
 
 def expressive(phase):
-    surface_areas = []
+    ratios = {}
     stabilities = []
     x_symmetry = []
     y_symmetry = []
@@ -423,26 +412,45 @@ def expressive(phase):
         x_symmetry.append(width_symmetry(lattice, horizontal_bounds, depth_bounds, vertical_bounds))
         y_symmetry.append(height_symmetry(lattice, horizontal_bounds, depth_bounds, vertical_bounds))
         z_symmetry.append(depth_symmetry(lattice, horizontal_bounds, depth_bounds, vertical_bounds))
-        surface_areas.append(surface_ratio(lattice, horizontal_bounds, vertical_bounds, depth_bounds))
+        new_ratios = surface_ratio(lattice, horizontal_bounds, vertical_bounds, depth_bounds)
+        for ratio in new_ratios.keys():
+            try:
+                ratios[ratio] += new_ratios[ratio]
+            except KeyError:
+                ratios.update({ratio: new_ratios[ratio]})
         stabilities.append(stability(lattice)[1])
-    return {"Surface Area": surface_areas, "Stability": stabilities, "X-Symmetry": x_symmetry, "Y-Symmetry": y_symmetry, "Z-Symmetry": z_symmetry}
+
+    result = {"Instability": stabilities, "X-Symmetry": x_symmetry, "Y-Symmetry": y_symmetry, "Z-Symmetry": z_symmetry}
+    for key in ratios.keys():
+        result.update({key: ratios[key]})
+
+    return result
 
 
 def confidence_interval(values, confidence):
     return np.std(values) / np.sqrt(len(values)) * confidence
 
 
-def AVG_Properties(label, pops):
-    experiment_results = {"Surface Area": [], "Stability": [], "X-Symmetry": [], "Y-Symmetry": [], "Z-Symmetry": []}
-    for phase in range(len(pops)):
-        properties = expressive(pops[phase])
-        for property in properties.keys():
-            experiment_results[property] += properties[property]
-    for property in experiment_results.keys():
-        experiment_results[property] = {"Mean": np.round(np.mean(experiment_results[property]), 2),
-                                        "CI": np.round(confidence_interval(experiment_results[property], 1.96), 2)}
-    print({label: experiment_results})
-    return {label: experiment_results}
+def AVG_Properties(experiment, args=None):
+    experiment_results = []
+    populations = load_populations(experiment)
+    for phase in range(phases_to_evaluate):
+        phase_results = {}
+        pops = populations[phase]
+        for population in range(len(pops)):
+            properties = expressive(pops[population])
+            for key in properties.keys():
+                try:
+                    phase_results[key] += properties[key]
+                except KeyError:
+                    phase_results.update({key: properties[key]})
+        for key in phase_results.keys():
+            phase_results[key] = {"Mean": np.round(np.mean(phase_results[key]), 2),
+                                  "CI": np.round(confidence_interval(phase_results[key], 1.96), 2)}
+        experiment_results.append(phase_results)
+        print({experiment: experiment_results})
+    np.save("./Results/AVG_Properties.npy", {experiment: experiment_results})
+    return experiment_results
 
 
 def confusion_matrix(experiments):
@@ -494,21 +502,50 @@ def expressive_analysis(experiments, xlabel, ylabel, dict=None):
     fig.show()
 
 
-def compare_plot(experiments, function, title, dict, args=None):
+def AVG_Plot(label, args):
+    results = np.load("./Results/AVG_Properties.npy", allow_pickle=True).item()[label]
+    means = []
+    cis = []
+
+    for phase in range(phases_to_evaluate):
+        means.append(results[phase][args[0]]["Mean"])
+        cis.append(results[phase][args[0]]["CI"])
+
+    return range(phases_to_evaluate), np.asarray(means), np.asarray(cis)
+
+
+def compare_plot(experiments, function, title, filename="", args=None, save=False):
+
+    if args is None:
+        figure_name = "./Figures/{}.png".format(function.__name__)
+    elif type(args) == str:
+        figure_name = "./Figures/{}-{}.png".format(function.__name__, args)
+    else:
+        figure_name = "Fix_bug.png"
+
+    results_dict = {}
+
+    try:
+        np.load("./Results/{}.npy".format(filename)).item()
+    except FileNotFoundError:
+        pass
+
     plt.figure()
     plt.xlabel("Iterations", fontsize=12)
     plt.ylabel(title, fontsize=12)
     plt.grid()
+
     counter = 0
 
     for experiment in experiments:
         try:
-            [means, ci] = dict[experiment]
-            print("{} data found!".format(experiment))
-        except\
-                :
+            [means, ci] = results_dict[experiment]
+            ticks = range(len(means))
+        except KeyError:
             print("No data found for {}, calculating new points".format(experiment))
             ticks, means, ci = function(experiment, (args, experiment))
+            results_dict.update({experiment: [means, ci]})
+
         plt.errorbar(x=ticks, y=means, label=experiment, color=colors[counter], marker=markers[counter], alpha=0.7, linestyle=linestyles[counter])
         plt.fill_between(x=ticks, y1=means + ci, y2=means - ci, color=colors[counter], alpha=0.15)
         counter += 1
@@ -517,60 +554,47 @@ def compare_plot(experiments, function, title, dict, args=None):
     plt.subplots_adjust(top=0.85)
     plt.legend(fontsize=12, loc='upper center', ncol=3, bbox_to_anchor=[0.5, 1.21])
 
-    if args is None:
-        figure_name = "./Figures/{}.png".format(function.__name__)
-    elif type(args) == str:
-        figure_name = "./Figures/{}-{}.png".format(function.__name__, args)
-    else:
-        figure_name = "Fix_bug.png"
     plt.savefig(figure_name)
+
+    if save:
+        np.save(filename, results_dict)
 
 
 if __name__ == '__main__':
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    physical_devices = tf.config.experimental.list_physical_devices('GPU')
+
     config = load_config_file()
-
-    plt.rcParams['image.cmap'] = 'viridis'
-    plt.rcParams["font.family"] = "Times New Roman"
-    plt.rc('axes', labelsize=12)
-
-    flatten = itertools.chain.from_iterable
-
     locations = [(0, 0), (0, 1), (1, 0), (1, 1)]
     pca_locs = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)]
     novelty_spectrum_subplots = [[(5, 5, index * 5 + offset) for index in range(5)] for offset in range(1, 6)]
     ae_label = ['Vanilla AE', 'Denoising AE']
 
-    phases_to_evaluate = 9
+    phases_to_evaluate = 10
 
     pool = Pool(12)
     labels = ["NA-AE"]
     colors = ['black', '#d63333', '#3359d6', '#3398d6', '#662dc2']
     markers = ['s', 'v', 'D', '^', 'o']
     linestyles = ['solid', 'dashed', 'dashed', 'dashed', 'dashed']
-    keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty",
-            "Infeasible Size", "Species Count", "Minimum Species Size", "Maximum Species Size", "Mean Species Size"]
+
+    neat_keys = ["Node Complexity", "Connection Complexity", "Archive Size", "Best Novelty", "Mean Novelty",
+                 "Infeasible Size", "Species Count", "Minimum Species Size", "Maximum Species Size",
+                 "Mean Species Size"]
+
+    AVG_keys = ["Instability", "X-Symmetry", "Y-Symmetry", "Z-Symmetry", "Surface Area",
+                "Floor", "Walls", "Roof", "Building vs BB Volume Ratio", "BB vs Total Volume Ratio"]
+
+    for key in neat_keys:
+        compare_plot(labels, neat_metric, key, args=key)
+
+    AVG_Properties(labels[0])
+    for key in AVG_keys:
+        compare_plot(labels, AVG_Plot, key, args=key, filename="./Results/AVG_Properties.npy")
 
     # novelty_spectrum(labels)
-
-    #diversity_dict = {}
-    #compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", dict=diversity_dict, args=test_population(True))
-    #np.save("./Results/Reconstruction.npy", diversity_dict)
-
-
-    # diversity_dict = {}
+    # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=test_population(True))
     # compare_plot(labels, lattice_diversity, "Voxel KL-Diversity", dict=diversity_dict)
-    # np.save("./Results/Population_Diversity.npy", diversity_dict)
-
-
-    diversity_dict = {}
-    compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", dict=diversity_dict, args=test_population(True))
-    np.save("./Results/Diversity_from_Seed.npy", diversity_dict)
-
-    diversity_dict = {}
-    compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", dict=diversity_dict, args=load_seed_pops())
-    np.save("./Results/Diversity_from_Seed.npy", diversity_dict)
+    # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", dict=diversity_dict, args=test_population(True))
+    # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", dict=diversity_dict, args=load_seed_pops())
 
     """dict = np.load("./Results/Reconstruction_Matrix.npy", allow_pickle=True).item()
     for label in labels:
@@ -582,9 +606,6 @@ if __name__ == '__main__':
 
         print("{} - Mean Population Error: {}% ± {}%, Mean Model Error: {}% ± {}%".format(label, np.round(np.mean(pop_acc), 2), np.round(confidence_interval(pop_acc, 1.96), 2), np.round(np.mean(model_acc), 2), np.round(confidence_interval(model_acc, 1.96)), 2))
     """
-
-    # for key in keys:
-    # compare_plot(labels, neat_metric, key, args=key, dict={})
 
     pool.close()
     pool.join()

@@ -221,7 +221,7 @@ def height_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
             for z in range(vertical_bounds[0], int(vertical_bounds[1] / 2)):
                 if lattice[x][y][z] == lattice[x][y][int(vertical_bounds[1] / 2) + z]:
                     symmetry_count += 1
-    return symmetry_count
+    return symmetry_count / 4000
 
 
 def width_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
@@ -232,7 +232,7 @@ def width_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
             for z in range(vertical_bounds[0], vertical_bounds[1]):
                 if lattice[x][y][z] == lattice[int(width / 2) + x][y][z]:
                     symmetry_count += 1
-    return symmetry_count
+    return symmetry_count / 4000
 
 
 def depth_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
@@ -243,7 +243,7 @@ def depth_symmetry(lattice, horizontal_bounds, vertical_bounds, depth_bounds):
             for z in range(vertical_bounds[0], vertical_bounds[1]):
                 if lattice[x][y][z] == lattice[x][int(depth / 2) + y][z]:
                     symmetry_count += 1
-    return symmetry_count
+    return symmetry_count / 4000
 
 
 def stability(lattice):
