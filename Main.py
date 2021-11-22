@@ -9,10 +9,10 @@ if __name__ == '__main__':
     # To run an experiment - specify the following four parameters and an experiment title and run the main script
     static = False
     noisy = False
-    full_history = False
+    full_history = True
     random_ae = False
-    train_on_archive = True
-    experiment = "Novelty Archive AE"
+    train_on_archive = False
+    experiment = "Full History AE"
 
     if not os.path.exists('Delenox_Experiment_Data/{}'.format(experiment)):
         os.makedirs('Delenox_Experiment_Data/{}'.format(experiment))
@@ -76,7 +76,7 @@ if __name__ == '__main__':
                                 np.asarray(training_population))
 
             # Update the metrics dictionary with this phase' results
-            for key in metrics.neat_keys():
+            for key in metrics.keys():
                 try:
                     neat_metrics[key].append(metrics[key])
                 except KeyError:
