@@ -111,7 +111,7 @@ env.bak/
 venv.bak/
 
 # Output Files
-Delenox_Experiment_Data/
+../Delenox_Experiment_Data/
 
 # IML Files
 .iml
