@@ -7,31 +7,21 @@ from Evaluation.ReconstructionMeasures import reconstruction_accuracy
 
 def matrix_set(experiments):
     results = {label: {} for label in experiments}
-
     for experiment in experiments:
         encoder, decoder = load_autoencoder(experiment, 9)
         experiment_result = {label: [] for label in experiments}
-
         for target in experiments:
             pops = load_populations(target)[-1]
             reconstruction_error = []
-
             for pop in pops:
-                re = []
-
-                vectors = [encoder.predict(lattice[None])[0] for lattice in pop]
-                results = [pool.apply_async(novelty, (vector, vectors)) for vector in vectors]
-                """for lattice in pop:
+                # vectors = [encoder.predict(lattice[None])[0] for lattice in pop]
+                # results = [pool.apply_async(novelty, (vector, vectors)) for vector in vectors]
+                for lattice in pop:
                     compressed = encoder.predict(lattice[None])[0]
                     reconstructed = decoder.predict(compressed[None])[0]
-                    re.append(calculate_error(lattice, reconstructed))"""
-                reconstruction_error.append(np.mean(re))
-
-            experiment_result[target] += [np.mean(reconstruction_error),
-                                          confidence_interval(reconstruction_error, 1.96)]
-            print(experiment_result)
+                    reconstruction_error.append(calculate_error(lattice, reconstructed))
+            experiment_result[target] += reconstruction_error
         results.update({experiment: experiment_result})
-    print(results)
     np.save("./Results/Reconstruction_Matrix.npy", results)
 
 
