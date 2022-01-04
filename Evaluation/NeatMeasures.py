@@ -2,7 +2,7 @@ from Evaluation.DataLoading import load_metric
 from Evaluation.EvalutationConfig import *
 
 
-def neat_metric(experiment, metric):
+def neat_metric(experiment, pool, metric):
     metric = np.asarray(load_metric(experiment, metric[0]))
     if metric.shape == (10, phases_to_evaluate * 100):
         metric = np.stack(metric, axis=1)

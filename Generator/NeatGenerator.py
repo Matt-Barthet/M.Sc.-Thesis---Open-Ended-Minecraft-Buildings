@@ -1,3 +1,5 @@
+from conda import iteritems
+
 from Generator.Autoencoder import add_noise, convert_to_integer, load_model, create_auto_encoder, auto_encoder_3d
 from Generator.Constraints import *
 from Generator.Delenox_Config import *
@@ -331,10 +333,22 @@ def load_config_file():
 
 if __name__ == "__main__":
 
-    config2 = load_config_file()
-    test_generator2 = NeatGenerator(config2, 3)
-    test_generator2.run_neat(0, "Test_Run")
+    config = load_config_file()
 
-    # test_generator.config.__setattr__("compatibility_threshold", population_size)
+    pool = Pool(16)
+    for pop in range(10):
+        with open("../Generator/Results/Seed/Neat_Population_{:d}.pkl".format(pop), "rb") as file:
+            generator = pickle.load(file)
+        jobs = []
+        lattices = []
+        for genome_id, genome in list(iteritems(generator.population.population)):
+            jobs.append(pool.apply_async(generate_lattice, (genome, config, False, None)))
+        for job in jobs:
+            result = job.get()
+            if result[2]:
+                lattices.append(result[0])
+        np.save("../Generator/Results/Seed/Neat_Population_{:d}.npy".format(pop), lattices)
+    pool.close()
+    pool.join()
 
 

@@ -1,4 +1,6 @@
 from Evaluation.EvalutationConfig import *
+from Generator.NeatGenerator import *
+from Generator.Delenox_Config import *
 
 
 def load_training_set(label):
@@ -69,19 +71,15 @@ def pca_population(experiments):
 
 def generate_seed(pool):
     for pop in range(10):
-        with open("Results/Seed/Neat_Population_{:d}.pkl".format(pop), "rb") as file:
+        with open("../Generator/Results/Seed/Neat_Population_{:d}.pkl".format(pop), "rb") as file:
             generator = pickle.load(file)
-
         jobs = []
         lattices = []
-
         for genome_id, genome in list(iteritems(generator.population.population)):
             jobs.append(pool.apply_async(generate_lattice, (genome, config, False, None)))
-
         for job in jobs:
             result = job.get()
             if result[2]:
                 lattices.append(result[0])
-
-        np.save("Results/Seed/Neat_Population_{:d}.npy".format(pop), lattices)
+        np.save("../Generator/Results/Seed/Neat_Population_{:d}.npy".format(pop), lattices)
 

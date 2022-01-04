@@ -12,11 +12,12 @@ from keras.utils.np_utils import to_categorical
 from sklearn.decomposition import PCA
 
 from Generator.Autoencoder import load_model
-from Generator.Delenox_Config import *
 from Generator.Constraints import *
 from Generator.Autoencoder import convert_to_integer, calculate_error, add_noise
-from Generator.NeatGenerator import novelty_search, generate_lattice, load_config_file
 from Generator.Visualization import get_color_map, expressive_graph
+from Generator.NeatGenerator import *
+from Generator.Delenox_Config import *
+import Generator.Delenox_Config
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -34,7 +35,8 @@ ae_label = ['Vanilla AE', 'Denoising AE']
 
 phases_to_evaluate = 10
 
-labels = ["Static AE", "FH-AE", "NA-AE"]
+# labels = ["Random AE"]
+labels = ["Static AE", "Random AE", "LS-AE", "FH-AE", "NA-AE"]
 colors = ['black', '#d63333', '#3359d6', '#3398d6', '#662dc2']
 markers = ['s', 'v', 'D', '^', 'o']
 linestyles = ['solid', 'dashed', 'dashed', 'dashed', 'dashed']

@@ -2,7 +2,7 @@ from Evaluation.DataLoading import load_populations, load_autoencoder, load_seed
 from Evaluation.EvalutationConfig import *
 
 
-def AVG_Plot(label, args):
+def AVG_Plot(label, pool, args):
     results = np.load("./Results/AVG_Properties.npy", allow_pickle=True).item()[label]
     means = []
     cis = []

@@ -1,7 +1,8 @@
 from Evaluation.DataLoading import *
-from Evaluation.DiversityMeasures import diversity_from_target, novelty
+from Evaluation.DiversityMeasures import diversity_from_target, diversity_correlation
 from Evaluation.EvalutationConfig import *
-from Evaluation.QualitativeMeasures import surface_ratio, AVG_Properties
+from Evaluation.NeatMeasures import neat_metric
+from Evaluation.QualitativeMeasures import surface_ratio, AVG_Properties, AVG_Plot, novelty_spectrum
 from Evaluation.ReconstructionMeasures import reconstruction_accuracy
 
 
@@ -58,19 +59,22 @@ def confusion_matrix(experiments):
 
 
 def compare_plot(experiments, function, title, filename="", args=None, save=False):
+
     if args is None:
         figure_name = "./Figures/{}.png".format(function.__name__)
     elif type(args) == str:
         figure_name = "./Figures/{}-{}.png".format(function.__name__, args)
     else:
-        figure_name = "Fix_bug.png"
+        figure_name = "./Figures/{}.png".format(filename)
 
     results_dict = {}
 
     try:
-        np.load("./Results/{}.npy".format(filename), allow_pickle=True).item()
+        results_dict = np.load("./Results/{}.npy".format(filename), allow_pickle=True).item()
     except FileNotFoundError:
-        pass
+        print("No file found for {}".format(function.__name__))
+
+    del(results_dict['Static AE'])
 
     plt.figure()
     plt.xlabel("Iterations", fontsize=12)
@@ -82,6 +86,7 @@ def compare_plot(experiments, function, title, filename="", args=None, save=Fals
     for experiment in experiments:
         try:
             [means, ci] = results_dict[experiment]
+            print("{} - mean: {} - CI - {}".format(experiment, means, ci))
             ticks = range(len(means))
         except KeyError:
             print("No data found for {}, calculating new points".format(experiment))
@@ -106,31 +111,34 @@ def compare_plot(experiments, function, title, filename="", args=None, save=Fals
 if __name__ == '__main__':
 
     pool = Pool(12)
-
+    matrix_set(labels)
     # for key in neat_keys:
-    # compare_plot(labels, neat_metric, key, args=key)
+        # compare_plot(labels, neat_metric, key, args=key, save=True)
 
-    # AVG_Properties(labels)
-    # for key in AVG_keys:
-    # compare_plot(labels, AVG_Plot, key, args=key, filename="AVG_Properties")
+    """AVG_Properties(labels)
+    for key in AVG_keys:
+        compare_plot(labels, AVG_Plot, key, args=key, filename="AVG_Properties", save=True)"""
 
-    compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=medieval_population(True), filename="Reco_Medieval")
-    compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=None, filename="KL_Populations")
-    compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=load_seed_pops(), filename="KL_Seed")
-    compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=medieval_population(True), filename="KL_Medieval")
+    # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=None, filename="Reco_Training_Sets", save=True)
 
-    # novelty_spectrum(labels)
+    # diversity_correlation(labels, pool, None)
 
-    """dict = np.load("./Results/Reconstruction_Matrix.npy", allow_pickle=True).item()
+    # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=10, filename="KL_Populations", save=True)
+    # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=load_seed_pops(), filename="KL_Seed", save=True)
+    # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=medieval_population(True), filename="KL_Medieval", save=True)
+
+    # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=medieval_population(True), filename="Reco_Medieval", save=True)
+    # novelty_spectrum(labels, pool)
+
+    """matrix_set(labels)
+    dict = np.load("./Results/Novelty_Matrix.npy", allow_pickle=True).item()
     for label in labels:
         model_acc = []
         pop_acc = []
         for target in labels:
             model_acc.append(dict[label][target][0])
             pop_acc.append(dict[target][label][0])
-
-        print("{} - Mean Population Error: {}% ± {}%, Mean Model Error: {}% ± {}%".format(label, np.round(np.mean(pop_acc), 2), np.round(confidence_interval(pop_acc, 1.96), 2), np.round(np.mean(model_acc), 2), np.round(confidence_interval(model_acc, 1.96)), 2))
-    """
+        print("{} - Mean Population Error: {}% ± {}%, Mean Model Error: {}% ± {}%".format(label, np.round(np.mean(pop_acc), 2), np.round(confidence_interval(pop_acc, 1.96), 2), np.round(np.mean(model_acc), 2), np.round(confidence_interval(model_acc, 1.96)), 2))"""
 
     pool.close()
     pool.join()
