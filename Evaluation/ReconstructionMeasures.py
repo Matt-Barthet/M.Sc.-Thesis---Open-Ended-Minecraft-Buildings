@@ -1,4 +1,4 @@
-from Evaluation.DataLoading import load_autoencoder, load_seed_set, load_training_set
+from Evaluation.DataLoading import load_autoencoder, load_seed_set, load_training_set, load_seed_pops, load_populations
 from Evaluation.EvalutationConfig import *
 
 
@@ -15,17 +15,18 @@ def reconstruction_accuracy(experiment, pool, args):
         if args[0] is not None:
             target = args[0]
         elif phase == -1:
-            target = load_seed_set()
+            target = load_seed_pops()
         else:
-            target = load_training_set(experiment)[phase]
+            target = load_populations(experiment)[phase]
 
-        for lattice in target:
-            if experiment[-3:] == 'DAE':
-                compressed = encoder.predict(add_noise(lattice)[None])[0]
-            else:
+        for pop in range(len(target)):
+            print("Phase {} - Population {} - Reconstruction Test".format(phase, pop))
+            pop_errors = []
+            for lattice in target[pop]:
                 compressed = encoder.predict(lattice[None])[0]
-            reconstructed = decoder.predict(compressed[None])[0]
-            errors.append(calculate_error(lattice, reconstructed))
+                reconstructed = decoder.predict(compressed[None])[0]
+                pop_errors.append(calculate_error(lattice, reconstructed))
+            errors.append(np.mean(pop_errors))
 
         means.append(np.mean(errors))
         cis.append(np.std(errors) / np.sqrt(len(errors)) * 1.96)

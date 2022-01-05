@@ -1,3 +1,5 @@
+import matplotlib
+
 from Evaluation.DataLoading import *
 from Evaluation.DiversityMeasures import diversity_from_target, diversity_correlation
 from Evaluation.EvalutationConfig import *
@@ -58,7 +60,9 @@ def confusion_matrix(experiments):
     np.save("./Results/AVG_Results.npy", results)
 
 
-def compare_plot(experiments, function, title, filename="", args=None, save=False):
+def compare_plot(experiments, function, title, filename="", args=None):
+
+    matplotlib.rcParams.update({'font.size': 14})
 
     if args is None:
         figure_name = "./Figures/{}.png".format(function.__name__)
@@ -67,18 +71,20 @@ def compare_plot(experiments, function, title, filename="", args=None, save=Fals
     else:
         figure_name = "./Figures/{}.png".format(filename)
 
+    save = False
     results_dict = {}
 
     try:
         results_dict = np.load("./Results/{}.npy".format(filename), allow_pickle=True).item()
     except FileNotFoundError:
-        print("No file found for {}".format(function.__name__))
+        print("No file found for {}".format(filename))
+        save = True
 
-    del(results_dict['Static AE'])
+    # del(results_dict['Static AE'])
 
     plt.figure()
-    plt.xlabel("Iterations", fontsize=12)
-    plt.ylabel(title, fontsize=12)
+    plt.xlabel("Iterations", fontsize=16)
+    plt.ylabel(title, fontsize=16)
     plt.grid()
 
     counter = 0
@@ -100,18 +106,18 @@ def compare_plot(experiments, function, title, filename="", args=None, save=Fals
 
     plt.tight_layout()
     plt.subplots_adjust(top=0.85)
-    plt.legend(fontsize=12, loc='upper center', ncol=3, bbox_to_anchor=[0.5, 1.21])
-
+    plt.legend(loc='upper center', ncol=3, bbox_to_anchor=[0.5, 1.235])
     plt.savefig(figure_name)
 
     if save:
-        np.save(filename, results_dict)
+        np.save("./Results/{}".format(filename), results_dict)
 
 
 if __name__ == '__main__':
 
     pool = Pool(12)
-    matrix_set(labels)
+    # matrix_set(labels)
+
     # for key in neat_keys:
         # compare_plot(labels, neat_metric, key, args=key, save=True)
 
@@ -123,10 +129,10 @@ if __name__ == '__main__':
 
     # diversity_correlation(labels, pool, None)
 
-    # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=10, filename="KL_Populations", save=True)
-    # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=load_seed_pops(), filename="KL_Seed", save=True)
-    # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=medieval_population(True), filename="KL_Medieval", save=True)
-
+    # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=None, filename="KL_Populations")
+    # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=load_seed_pops(), filename="KL_Seed")
+    # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=medieval_population(True), filename="KL_Medieval")
+    compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=None, filename="Reco_Pops")
     # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=medieval_population(True), filename="Reco_Medieval", save=True)
     # novelty_spectrum(labels, pool)
 
