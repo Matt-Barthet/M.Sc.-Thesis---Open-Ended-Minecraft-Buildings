@@ -71,7 +71,7 @@ def compare_plot(experiments, function, title, filename="", args=None):
     else:
         figure_name = "./Figures/{}.png".format(filename)
 
-    save = False
+    save = True
     results_dict = {}
 
     try:
@@ -132,7 +132,10 @@ if __name__ == '__main__':
     # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=None, filename="KL_Populations")
     # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=load_seed_pops(), filename="KL_Seed")
     # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=medieval_population(True), filename="KL_Medieval")
-    compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=None, filename="Reco_Pops")
+    compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=block_buildings(), filename="KL_Block")
+
+    # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=None, filename="Reco_Pops")
+    compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=block_buildings(), filename="Reco_Medieval",)
     # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=medieval_population(True), filename="Reco_Medieval", save=True)
     # novelty_spectrum(labels, pool)
 

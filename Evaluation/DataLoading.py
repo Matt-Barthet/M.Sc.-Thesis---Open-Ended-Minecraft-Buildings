@@ -1,4 +1,4 @@
-from Evaluation.EvalutationConfig import *
+from Evaluation.EvalutationConfig import PCA, load_model, flatten, phases_to_evaluate
 from Generator.NeatGenerator import *
 from Generator.Delenox_Config import *
 
@@ -45,13 +45,17 @@ def load_autoencoder(label, phase):
 
 
 def medieval_population(categorical):
-    test_pop = list(np.load("Real-World Datasets/Ahousev5_Buildings_Fixed.npy", allow_pickle=True))
-    test_pop += list(np.load("Real-World Datasets/Ahousev5_Buildings_Varied.npy", allow_pickle=True))
+    test_pop = list(np.load("Other Datasets/Ahousev5_Buildings_Fixed.npy", allow_pickle=True))
+    test_pop += list(np.load("Other Datasets/Ahousev5_Buildings_Varied.npy", allow_pickle=True))
     if categorical:
         encoded_pop = [to_categorical(individual, num_classes=5) for individual in test_pop]
     else:
         encoded_pop = test_pop
     return encoded_pop
+
+
+def block_buildings():
+    return np.load("./Other Datasets/Block_Buildings.npy", allow_pickle=True)
 
 
 def pca_population(experiments):
