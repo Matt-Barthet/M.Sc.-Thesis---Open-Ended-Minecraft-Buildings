@@ -7,7 +7,7 @@ import pickle
 
 from scipy.stats import entropy
 from scipy.special import softmax
-from conda import iteritems
+# from conda import iteritems
 from keras.utils.np_utils import to_categorical
 from sklearn.decomposition import PCA
 
@@ -36,7 +36,7 @@ ae_label = ['Vanilla AE', 'Denoising AE']
 phases_to_evaluate = 10
 
 # labels = ["Random AE"]
-labels = ["Static AE", "Random AE", "LS-AE", "FH-AE", "NA-AE"]
+labels = ["Static AE", "LS-AE", "FH-AE", "NA-AE"]
 colors = ['black', '#d63333', '#3359d6', '#3398d6', '#662dc2']
 markers = ['s', 'v', 'D', '^', 'o']
 linestyles = ['solid', 'dashed', 'dashed', 'dashed', 'dashed']

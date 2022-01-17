@@ -1,11 +1,12 @@
 import matplotlib
+import matplotlib.pyplot as plt
 
 from Evaluation.DataLoading import *
 from Evaluation.DiversityMeasures import diversity_from_target, diversity_correlation
 from Evaluation.EvalutationConfig import *
 from Evaluation.NeatMeasures import neat_metric
 from Evaluation.QualitativeMeasures import surface_ratio, AVG_Properties, AVG_Plot, novelty_spectrum
-from Evaluation.ReconstructionMeasures import reconstruction_accuracy
+from Evaluation.ReconstructionMeasures import reconstruction_accuracy, reconstruct_final_phase
 
 
 def matrix_set(experiments):
@@ -62,8 +63,6 @@ def confusion_matrix(experiments):
 
 def compare_plot(experiments, function, title, filename="", args=None):
 
-    matplotlib.rcParams.update({'font.size': 14})
-
     if args is None:
         figure_name = "./Figures/{}.png".format(function.__name__)
     elif type(args) == str:
@@ -115,7 +114,50 @@ def compare_plot(experiments, function, title, filename="", args=None):
 
 if __name__ == '__main__':
 
+    matplotlib.rcParams.update({'font.size': 14})
+
+    results = []
+    reco_pops = np.load("Results/Reco_Pops_FinalAE.npy", allow_pickle=True).item()
+    reco_blocks = np.load("Results/Reco_Blocks_FinalAE.npy", allow_pickle=True).item()
+    reco_medieval = np.load("Results/Reco_Medival_FinalAE.npy", allow_pickle=True).item()
+    reco_seeds = np.load("Results/Reco_Seed_FinalAE.npy", allow_pickle=True).item()
+    for label in labels:
+        results.append(
+            [reco_pops[label][0][0], reco_seeds[label][0][0], reco_blocks[label][0][0], reco_medieval[label][0][0],
+             reco_pops[label][0][0]])
+
+    """reco_pops = np.load("Results/KL_Populations.npy", allow_pickle=True).item()
+    reco_blocks = np.load("Results/KL_Block.npy", allow_pickle=True).item()
+    reco_medieval = np.load("Results/KL_Medieval.npy", allow_pickle=True).item()
+    reco_seeds = np.load("Results/KL_Seed.npy", allow_pickle=True).item()
+    for label in labels:
+        print(reco_pops[label][0][0])
+        results.append([reco_pops[label][0][-1], reco_seeds[label][0][-1], reco_blocks[label][0][-1], reco_medieval[label][0][-1], reco_pops[label][0][-1]])
+    """
+
+    label_loc = np.linspace(start=0, stop=2 * np.pi, num=5)
+    plt.figure()
+    plt.subplot(polar=True)
+
+    counter = 0
+    for result in range(len(results)):
+        plt.plot(label_loc, results[result], label=labels[result], linestyle=linestyles[counter], marker=markers[counter], alpha=0.7)
+        plt.fill(label_loc, results[result], alpha=0.1)
+        counter += 1
+
+    lines, labels = plt.thetagrids(np.degrees(label_loc), labels=["Final Pops", "Seed Pops", "Cubes", "Medieval", "Final Pops"])
+    labels[0].set_horizontalalignment('left')
+    labels[-1].set_horizontalalignment('left')
+    labels[2].set_horizontalalignment('right')
+    plt.legend(bbox_to_anchor=[1.4, 1])
+    plt.tight_layout()
+    plt.savefig("./Figures/Reco_Radar.png")
+    plt.show()
+    exit()
+
+
     pool = Pool(12)
+
     # matrix_set(labels)
 
     # for key in neat_keys:
@@ -132,10 +174,17 @@ if __name__ == '__main__':
     # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=None, filename="KL_Populations")
     # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=load_seed_pops(), filename="KL_Seed")
     # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=medieval_population(True), filename="KL_Medieval")
-    compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=block_buildings(), filename="KL_Block")
+    # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=block_buildings(), filename="KL_Block")
 
     # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=None, filename="Reco_Pops")
-    compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=block_buildings(), filename="Reco_Medieval",)
+    # compare_plot(labels, reconstruct_final_phase, "Reconstruction Error", args=block_buildings(), filename="Reco_Blocks",)
+
+    # compare_plot(labels, reconstruct_final_phase, "Reconstruction Error", args=("Seed", load_seed_pops()), filename="Reco_Seed_FinalAE",)
+    compare_plot(labels, reconstruct_final_phase, "Reconstruction Error", args=("Blocks", block_buildings()), filename="Reco_Blocks_FinalAE",)
+    compare_plot(labels, reconstruct_final_phase, "Reconstruction Error", args=("Medieval", medieval_population(True)), filename="Reco_Medival_FinalAE",)
+    compare_plot(labels, reconstruct_final_phase, "Reconstruction Error", args=("Pops",), filename="Reco_Pops_FinalAE",)
+
+
     # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=medieval_population(True), filename="Reco_Medieval", save=True)
     # novelty_spectrum(labels, pool)
 

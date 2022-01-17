@@ -1,4 +1,4 @@
-from conda import iteritems
+# from conda import iteritems
 
 from Generator.Autoencoder import add_noise, convert_to_integer, load_model, create_auto_encoder, auto_encoder_3d
 from Generator.Constraints import *
