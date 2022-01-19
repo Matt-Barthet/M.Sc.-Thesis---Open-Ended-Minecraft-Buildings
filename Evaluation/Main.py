@@ -2,7 +2,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 from Evaluation.DataLoading import *
-from Evaluation.DiversityMeasures import diversity_from_target, diversity_correlation
+from Evaluation.DiversityMeasures import diversity_from_target, diversity_correlation, \
+    plot_test, subplots_test
 from Evaluation.EvalutationConfig import *
 from Evaluation.NeatMeasures import neat_metric
 from Evaluation.QualitativeMeasures import surface_ratio, AVG_Properties, AVG_Plot, novelty_spectrum
@@ -70,7 +71,9 @@ def compare_plot(experiments, function, title, filename="", args=None):
     else:
         figure_name = "./Figures/{}.png".format(filename)
 
-    save = True
+    matplotlib.rcParams.update({'font.size': 14})
+    figure_name = "./Figures/{}.png".format(filename)
+    save = False
     results_dict = {}
 
     try:
@@ -81,7 +84,7 @@ def compare_plot(experiments, function, title, filename="", args=None):
 
     # del(results_dict['Static AE'])
 
-    plt.figure()
+    plt.figure(figsize=(6, 5.5))
     plt.xlabel("Iterations", fontsize=16)
     plt.ylabel(title, fontsize=16)
     plt.grid()
@@ -105,17 +108,38 @@ def compare_plot(experiments, function, title, filename="", args=None):
 
     plt.tight_layout()
     plt.subplots_adjust(top=0.85)
-    plt.legend(loc='upper center', ncol=3, bbox_to_anchor=[0.5, 1.235])
+    plt.legend(loc='upper center', ncol=3, bbox_to_anchor=[0.5, 1.2])
     plt.savefig(figure_name)
+    plt.show()
 
     if save:
         np.save("./Results/{}".format(filename), results_dict)
 
 
-if __name__ == '__main__':
+def corr_subplot(label, ax):
+    results_dict = np.load("./Results/Diversity_Correlation.npy", allow_pickle=True).item()
+    novelties = results_dict[label][0]
+    entropies = results_dict[label][1]
+    heatmap, xedges, yedges = np.histogram2d(novelties, entropies, bins=50)
+    extent = [xedges[0], xedges[-1], 0, 0.25]
+    im = ax.imshow(heatmap, origin='lower', extent=extent, aspect=abs((extent[1]-extent[0])/(extent[3]-extent[2])))
+    ax.set_title(label)
+    ax.set_xlabel("Novelty")
+    if label == "LS-AE":
+        ax.set_ylabel("KL-Divergence")
+    return im
 
-    matplotlib.rcParams.update({'font.size': 14})
 
+def diversity_correlation_subplots():
+    f, (ax1, ax2, ax3) = plt.subplots(1, 3, sharey=True, figsize=(9, 4.5))
+    im1 = corr_subplot("LS-AE", ax1)
+    im2 = corr_subplot("FH-AE", ax2)
+    im3 = corr_subplot("NA-AE", ax3)
+    f.colorbar(im1, ax=[ax1, ax2, ax3], location='bottom', pad =0.17, shrink=0.5)
+    plt.show()
+
+
+def radar_plot(labels):
     results = []
     reco_pops = np.load("Results/Reco_Pops_FinalAE.npy", allow_pickle=True).item()
     reco_blocks = np.load("Results/Reco_Blocks_FinalAE.npy", allow_pickle=True).item()
@@ -153,10 +177,18 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.savefig("./Figures/Reco_Radar.png")
     plt.show()
-    exit()
 
+
+if __name__ == '__main__':
+
+    matplotlib.rcParams.update({'font.size': 14})
 
     pool = Pool(12)
+
+    subplots_test(["Seed"] + labels)
+    # novelty_spectrum(labels, pool)
+    # for label in ["Seed"] + labels:
+        # plot_test(label, pool)
 
     # matrix_set(labels)
 
@@ -177,14 +209,7 @@ if __name__ == '__main__':
     # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=block_buildings(), filename="KL_Block")
 
     # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=None, filename="Reco_Pops")
-    # compare_plot(labels, reconstruct_final_phase, "Reconstruction Error", args=block_buildings(), filename="Reco_Blocks",)
-
-    # compare_plot(labels, reconstruct_final_phase, "Reconstruction Error", args=("Seed", load_seed_pops()), filename="Reco_Seed_FinalAE",)
-    compare_plot(labels, reconstruct_final_phase, "Reconstruction Error", args=("Blocks", block_buildings()), filename="Reco_Blocks_FinalAE",)
-    compare_plot(labels, reconstruct_final_phase, "Reconstruction Error", args=("Medieval", medieval_population(True)), filename="Reco_Medival_FinalAE",)
-    compare_plot(labels, reconstruct_final_phase, "Reconstruction Error", args=("Pops",), filename="Reco_Pops_FinalAE",)
-
-
+    # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=block_buildings(), filename="Reco_Medieval",)
     # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=medieval_population(True), filename="Reco_Medieval", save=True)
     # novelty_spectrum(labels, pool)
 

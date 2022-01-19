@@ -139,7 +139,7 @@ class NeatGenerator:
                    fitness.fitness > 0}
         sorted_keys = [k for k, _ in sorted(fitness.items(), key=lambda item: item[1])]
 
-        for individual in range(np.min([add_to_archive, len(lattices)])):
+        for individual in range(1, np.min([add_to_archive, len(lattices)])):
             lattice = lattices[sorted_keys[-individual]]
             self.archive_lattices.append(lattice)
             vector = self.encoder.predict(lattice[None])[0]
@@ -156,7 +156,7 @@ class NeatGenerator:
 
         if self.current_gen + 1 == generations_per_run:
             np.savez_compressed("./Results/{}/Phase{:d}/Population_{:d}.npz".format(self.experiment, self.current_phase, self.population_id), lattices)
-            for individual in range(np.min([best_fit_count, len(sorted_keys)])):
+            for individual in range(1, np.min([best_fit_count, len(sorted_keys)])):
                 self.phase_best_fit.append(lattices[sorted_keys[-individual]])
 
         node_complexity = 0

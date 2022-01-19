@@ -100,6 +100,17 @@ def draw_lines_fig(fig):
     return fig
 
 
+def novelty_search2(genome, compressed_population):
+    distances = []
+    for neighbour in list(compressed_population.values()):
+        distance = 0
+        for element in range(len(neighbour)):
+            distance += np.square(genome[element] - neighbour[element])
+        distances.append(np.sqrt(distance))
+    distances = np.sort(distances)
+    return np.round(np.mean(distances[1:6]), 2)
+
+
 def novelty_spectrum(labels, pool):
     xlabels = ['Most\nNovel', 'Upper\nQuartile', 'Median\nNovel', 'Lower\nQuartile', 'Least\nNovel']
     for experiment in labels:
@@ -131,8 +142,8 @@ def novelty_spectrum(labels, pool):
                     counter += 1
                 jobs = []
                 for key in compressed.keys():
-                    parameters = (compressed[key], compressed, [])
-                    jobs.append(pool.apply_async(novelty_search, parameters))
+                    parameters = (compressed[key], compressed)
+                    jobs.append(pool.apply_async(novelty_search2, parameters))
                 for job, genome_id in zip(jobs, compressed.keys()):
                     fitness.update({genome_id: job.get()})
 

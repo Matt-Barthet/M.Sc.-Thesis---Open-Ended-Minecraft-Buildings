@@ -36,7 +36,7 @@ def load_autoencoder(label, phase):
         encoder = load_model("../Generator/Results/{}/Phase{}/encoder".format(label, phase))
         decoder = load_model("../Generator/Results/{}/Phase{}/decoder".format(label, phase))
     except FileNotFoundError:
-        print("File not found")
+        print("Autoencoder not found")
         encoder = load_model(
             "../Generator/Results/seed/encoder".format(label, 0))
         decoder = load_model(
