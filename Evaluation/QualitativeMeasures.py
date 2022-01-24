@@ -3,7 +3,7 @@ from Evaluation.EvalutationConfig import *
 
 
 def AVG_Plot(label, pool, args):
-    results = np.load("./Results/AVG_Properties.npy", allow_pickle=True).item()[label]
+    results = np.load("Results/Qualitative/AVG_Properties.npy", allow_pickle=True).item()[label]
     means = []
     cis = []
     for phase in range(phases_to_evaluate):
@@ -33,7 +33,7 @@ def AVG_Properties(experiments, args=None):
             experiment_results.append(phase_results)
             print({experiment: experiment_results})
         results_dict.update({experiment: experiment_results})
-    np.save("./Results/AVG_Properties.npy", results_dict)
+    np.save("Results/Qualitative/AVG_Properties.npy", results_dict)
     return results_dict
 
 
