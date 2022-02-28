@@ -1,5 +1,7 @@
 import matplotlib
 import matplotlib.pyplot as plt
+from scipy.stats import linregress, pearsonr
+import scipy.stats as stats
 
 from Evaluation.DataLoading import *
 from Evaluation.DiversityMeasures import diversity_from_target, diversity_correlation, \
@@ -102,7 +104,7 @@ def compare_plot(experiments, function, title, filename="", args=None):
             results_dict.update({experiment: [means, ci]})
 
         plt.errorbar(x=ticks, y=means, label=experiment, color=colors[counter], marker=markers[counter], alpha=0.7,
-                     linestyle=linestyles[counter])
+                     linestyle=linestyles[counter], markersize=7.5, markeredgecolor='black', markeredgewidth=1.5)
         plt.fill_between(x=ticks, y1=means + ci, y2=means - ci, color=colors[counter], alpha=0.15)
         counter += 1
 
@@ -120,10 +122,13 @@ def corr_subplot(label, ax):
     results_dict = np.load("./Results/Diversity_Correlation.npy", allow_pickle=True).item()
     novelties = results_dict[label][0]
     entropies = results_dict[label][1]
+
+    corr = pearsonr(np.asarray(novelties), np.asarray(entropies))
+    print("{}: Corr={}, Significance = {}".format(label, corr[0], corr[1]))
     heatmap, xedges, yedges = np.histogram2d(novelties, entropies, bins=50)
     extent = [xedges[0], xedges[-1], 0, 0.25]
     im = ax.imshow(heatmap, origin='lower', extent=extent, aspect=abs((extent[1]-extent[0])/(extent[3]-extent[2])))
-    ax.set_title(label)
+    ax.set_title("{}".format(label), fontsize=14)
     ax.set_xlabel("Novelty")
     if label == "LS-AE":
         ax.set_ylabel("KL-Divergence")
@@ -165,8 +170,8 @@ def radar_plot(labels):
 
     counter = 0
     for result in range(len(results)):
-        plt.plot(label_loc, results[result], label=labels[result], linestyle=linestyles[counter], marker=markers[counter], alpha=0.7)
-        plt.fill(label_loc, results[result], alpha=0.1)
+        plt.plot(label_loc, results[result], label=labels[result], linestyle=linestyles[counter], marker=markers[counter], alpha=0.7, markersize=7.5, markeredgecolor='black', markeredgewidth=1.5, color=colors[result])
+        plt.fill(label_loc, results[result], alpha=0.1, color=colors[result])
         counter += 1
 
     lines, labels = plt.thetagrids(np.degrees(label_loc), labels=["Final Pops", "Seed Pops", "Cubes", "Medieval", "Final Pops"])
@@ -184,11 +189,10 @@ if __name__ == '__main__':
     matplotlib.rcParams.update({'font.size': 14})
 
     pool = Pool(12)
-
+    for label in ["Seed"] + labels:
+        plot_test(label, pool)
     subplots_test(["Seed"] + labels)
     # novelty_spectrum(labels, pool)
-    # for label in ["Seed"] + labels:
-        # plot_test(label, pool)
 
     # matrix_set(labels)
 
@@ -201,8 +205,9 @@ if __name__ == '__main__':
 
     # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=None, filename="Reco_Training_Sets", save=True)
 
-    # diversity_correlation(labels, pool, None)
+    # diversity_correlation_subplots()
 
+    # radar_plot(labels)
     # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=None, filename="KL_Populations")
     # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=load_seed_pops(), filename="KL_Seed")
     # compare_plot(labels, diversity_from_target, "Voxel KL-Diversity", args=medieval_population(True), filename="KL_Medieval")

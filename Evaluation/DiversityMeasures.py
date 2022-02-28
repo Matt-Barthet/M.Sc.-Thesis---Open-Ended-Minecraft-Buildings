@@ -5,6 +5,7 @@ from scipy.stats import pearsonr
 
 from Evaluation.EvalutationConfig import *
 from Evaluation.DataLoading import load_seed_pops, load_populations, load_autoencoder
+from scipy.stats import linregress
 
 
 def subplots_test(labels):
@@ -56,9 +57,6 @@ def subplots_test(labels):
            #        "Diversity: {}".format(np.round(diversities[sorted_keys[int(len(sorted_keys) / 2)]], 2)))
         # voxel_plot(convert_to_integer(lattice_dict[sorted_keys[-1]]),
           #         "Diversity: {}".format(np.round(diversities[sorted_keys[-1]], 2)))
-
-
-
 
 
 def plot_test(label, pool):
@@ -122,7 +120,7 @@ def novelty_search2(identifier, genome, compressed_population):
             distance += np.square(genome[element] - neighbour[element])
         distances.append(np.sqrt(distance))
     distances = np.sort(distances)
-    return identifier, np.round(np.mean(distances[1:6]), 2)
+    return identifier, np.round(distances[1], 2)
 
 
 def vector_entropy(identifier, lattice, population):
@@ -263,7 +261,7 @@ def diversity_correlation(experiments, pool, args=None):
 
         plt.figure()
         plt.imshow(heatmap, origin='lower', extent=extent, aspect=xedges[-1]/yedges[-1])
-        plt.title(experiment)
+        plt.title("{}\nCorr:{}±{}".format(experiment))
         plt.ylabel("Voxel KL-Divergence")
         plt.xlabel("Novelty (Latent Space)")
         plt.colorbar()
