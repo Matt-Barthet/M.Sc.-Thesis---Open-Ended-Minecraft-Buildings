@@ -188,9 +188,9 @@ if __name__ == '__main__':
 
     matplotlib.rcParams.update({'font.size': 14})
 
-    pool = Pool(12)
-    for label in ["Seed"] + labels:
-        plot_test(label, pool)
+    # pool = Pool(12)
+    # for label in ["Seed"] + labels:
+        # plot_test(label, pool)
     subplots_test(["Seed"] + labels)
     # novelty_spectrum(labels, pool)
 

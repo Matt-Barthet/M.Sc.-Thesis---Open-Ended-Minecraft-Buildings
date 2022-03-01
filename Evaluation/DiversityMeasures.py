@@ -7,6 +7,8 @@ from Evaluation.EvalutationConfig import *
 from Evaluation.DataLoading import load_seed_pops, load_populations, load_autoencoder
 from scipy.stats import linregress
 
+from Evaluation.Test import new_voxel_plot
+
 
 def subplots_test(labels):
 
@@ -34,29 +36,23 @@ def subplots_test(labels):
         ax = fig.add_subplot(3, 6, experiment + 1, projection='3d')
         ax.set_title(label)
         lattice = convert_to_integer(lattice_dict[sorted_keys[-1]])
-        ax.voxels(lattice, edgecolor="k", facecolors=get_color_map(lattice, 'blue'))
-        ax.set_axis_off()
+        # ax.voxels(lattice, edgecolor="k", facecolors=get_color_map(lattice, 'blue'))
+        new_voxel_plot(fig, ax, lattice)
 
         ax = fig.add_subplot(3, 6, experiment + 7, projection='3d')
-        lattice = convert_to_integer(lattice_dict[sorted_keys[int(len(sorted_keys)/2)]])
-        ax.voxels(lattice, edgecolor="k", facecolors=get_color_map(lattice, 'blue'))
-        ax.set_axis_off()
+        lattice = convert_to_integer(lattice_dict[sorted_keys[-2]])
+        # ax.voxels(lattice, edgecolor="k", facecolors=get_color_map(lattice, 'blue'))
+        new_voxel_plot(fig, ax, lattice)
 
         ax = fig.add_subplot(3, 6, experiment + 13, projection='3d')
-        lattice = convert_to_integer(lattice_dict[sorted_keys[0]])
-        ax.voxels(lattice, edgecolor="k", facecolors=get_color_map(lattice, 'blue'))
-        ax.set_axis_off()
+        lattice = convert_to_integer(lattice_dict[sorted_keys[-3]])
+        new_voxel_plot(fig, ax, lattice)
+        # ax.voxels(lattice, edgecolor="k", facecolors=get_color_map(lattice, 'blue'))
 
         experiment += 1
 
     plt.tight_layout()
-    plt.show()
-        # voxel_plot(convert_to_integer(lattice_dict[sorted_keys[1]]),
-            #       "Diversity: {}".format(np.round(diversities[sorted_keys[1]], 2)))
-        # voxel_plot(convert_to_integer(lattice_dict[sorted_keys[int(len(sorted_keys) / 2)]]),
-           #        "Diversity: {}".format(np.round(diversities[sorted_keys[int(len(sorted_keys) / 2)]], 2)))
-        # voxel_plot(convert_to_integer(lattice_dict[sorted_keys[-1]]),
-          #         "Diversity: {}".format(np.round(diversities[sorted_keys[-1]], 2)))
+    plt.show(block=True)
 
 
 def plot_test(label, pool):
@@ -127,20 +123,7 @@ def vector_entropy(identifier, lattice, population):
     entropies = []
     for neighbour in population:
         entropies.append(entropy(lattice, neighbour))
-    return identifier, np.mean(np.sort(entropies)[1:6])
-
-
-def novelty_search(genome, compressed_population):
-    distances = []
-    for neighbour in compressed_population.values():
-        distance = 0
-        if (genome == neighbour).all():
-            continue
-        for element in range(len(neighbour)):
-            distance += np.square(genome[element] - neighbour[element])
-        distances.append(np.sqrt(distance))
-    distances = np.sort(distances)
-    return np.round(np.average(distances), 2)
+    return identifier, np.mean(np.sort(entropies))
 
 
 def diversity_from_target(experiment, pool, args=None):

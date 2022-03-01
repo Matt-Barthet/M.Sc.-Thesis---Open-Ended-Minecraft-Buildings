@@ -12,7 +12,7 @@ if __name__ == '__main__':
     full_history = True
     random_ae = False
     train_on_archive = False
-    experiment = "Full History AE"
+    experiment = "FH-AE"
 
     if not os.path.exists('Results/{}'.format(experiment)):
         os.makedirs('Results/{}'.format(experiment))

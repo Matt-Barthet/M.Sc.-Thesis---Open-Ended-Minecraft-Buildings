@@ -35,9 +35,9 @@ ae_label = ['Vanilla AE', 'Denoising AE']
 
 phases_to_evaluate = 10
 
-labels = ["Random AE"]
+# labels = ["Random AE"]
 # labels = ["NA-AE"]
-# labels = ["Static AE", "LS-AE", "FH-AE", "NA-AE", "Random AE"]
+labels = ["Static AE", "Random AE", "LS-AE", "FH-AE", "NA-AE", ]
 colors = ['black', '#3359d6', '#3398d6', '#662dc2', '#d63333']
 markers = ['s', 'v', 'D', '^', 'o']
 linestyles = ['solid', 'dashed', 'dashed', 'dashed', 'dashed']
