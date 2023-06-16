@@ -24,7 +24,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
 flatten = itertools.chain.from_iterable
 plt.rcParams['image.cmap'] = 'viridis'
-plt.rcParams["font.family"] = "Times New Roman"
+plt.rcParams["font.family"] = "Helvetica"
 plt.rc('axes', labelsize=12)
 
 config = load_config_file()
@@ -35,9 +35,7 @@ ae_label = ['Vanilla AE', 'Denoising AE']
 
 phases_to_evaluate = 10
 
-# labels = ["Random AE"]
-# labels = ["NA-AE"]
-labels = ["Static AE", "Random AE", "LS-AE", "FH-AE", "NA-AE", ]
+labels = ["Static AE", "Random AE", "LS-AE", "FH-AE", "NA-AE"]
 colors = ['black', '#3359d6', '#3398d6', '#662dc2', '#d63333']
 markers = ['s', 'v', 'D', '^', 'o']
 linestyles = ['solid', 'dashed', 'dashed', 'dashed', 'dashed']

@@ -111,11 +111,11 @@ def get_color_map(lattice, color_one='blue'):
                 if lattice[i][j][k] == 1:
                     color[i][j][k] = color_one
                 elif lattice[i][j][k] == 2:
-                    color[i][j][k] = 'red'
+                    color[i][j][k] = (128/255, 128/255, 128/255)
                 elif lattice[i][j][k] == 3:
-                    color[i][j][k] = 'green'
+                    color[i][j][k] = (161/255, 132/255, 79/255)
                 elif lattice[i][j][k] == 4:
-                    color[i][j][k] = 'yellow'
+                    color[i][j][k] = (102/255, 77/255, 46/255)
                 elif lattice[i][j][k] == 5:
                     color[i][j][k] = 'pink'
                 elif lattice[i][j][k] == 6:

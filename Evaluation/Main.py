@@ -145,53 +145,59 @@ def diversity_correlation_subplots():
 
 
 def radar_plot(labels):
-    results = []
-    reco_pops = np.load("Results/Reco_Pops_FinalAE.npy", allow_pickle=True).item()
-    reco_blocks = np.load("Results/Reco_Blocks_FinalAE.npy", allow_pickle=True).item()
-    reco_medieval = np.load("Results/Reco_Medival_FinalAE.npy", allow_pickle=True).item()
-    reco_seeds = np.load("Results/Reco_Seed_FinalAE.npy", allow_pickle=True).item()
-    for label in labels:
-        results.append(
-            [reco_pops[label][0][0], reco_seeds[label][0][0], reco_blocks[label][0][0], reco_medieval[label][0][0],
-             reco_pops[label][0][0]])
 
-    """reco_pops = np.load("Results/KL_Populations.npy", allow_pickle=True).item()
-    reco_blocks = np.load("Results/KL_Block.npy", allow_pickle=True).item()
-    reco_medieval = np.load("Results/KL_Medieval.npy", allow_pickle=True).item()
-    reco_seeds = np.load("Results/KL_Seed.npy", allow_pickle=True).item()
-    for label in labels:
-        print(reco_pops[label][0][0])
-        results.append([reco_pops[label][0][-1], reco_seeds[label][0][-1], reco_blocks[label][0][-1], reco_medieval[label][0][-1], reco_pops[label][0][-1]])
-    """
+    print(np.load("batch_evaluation_results.npy", allow_pickle=True).item())
 
-    label_loc = np.linspace(start=0, stop=2 * np.pi, num=5)
-    plt.figure()
-    plt.subplot(polar=True)
+    for phase in range(10):
+        results = []
 
-    counter = 0
-    for result in range(len(results)):
-        plt.plot(label_loc, results[result], label=labels[result], linestyle=linestyles[counter], marker=markers[counter], alpha=0.7, markersize=7.5, markeredgecolor='black', markeredgewidth=1.5, color=colors[result])
-        plt.fill(label_loc, results[result], alpha=0.1, color=colors[result])
-        counter += 1
+        # Load the results from the batch_evaluation function
+        reco_results = np.load("batch_evaluation_results.npy", allow_pickle=True).item()
+        # Define the batches in the order you want them to appear on the radar plot
+        batches = ["final", "seed", "blocks", "medieval"]
 
-    lines, labels = plt.thetagrids(np.degrees(label_loc), labels=["Final Pops", "Seed Pops", "Cubes", "Medieval", "Final Pops"])
-    labels[0].set_horizontalalignment('left')
-    labels[-1].set_horizontalalignment('left')
-    labels[2].set_horizontalalignment('right')
-    plt.legend(bbox_to_anchor=[1.4, 1])
-    plt.tight_layout()
-    plt.savefig("./Figures/Reco_Radar.png")
-    plt.show()
+        for label in labels:
+            label_results = []
+            for batch in batches:
+                # Append the mean of the reconstruction error for phase 0
+                label_results.append(reco_results[label + "_" + batch][0][phase])
+            # Repeat the first result at the end for the radar plot to connect back to the start
+            label_results.append(label_results[0])
+            results.append(label_results)
+
+        label_loc = np.linspace(start=0, stop=2 * np.pi, num=len(batches) + 1)
+
+        plt.figure()
+        plt.title("Iteration {}".format(phase + 1))
+        plt.subplot(polar=True)
+        plt.ylim([0, 40])
+
+        counter = 0
+        for result in range(len(results)):
+            plt.plot(label_loc, results[result], label=labels[result], linestyle=linestyles[counter],
+                     marker=markers[counter], alpha=0.9, markersize=7.5, markeredgecolor='black', markeredgewidth=1.5,
+                     color=colors[result])
+            plt.fill(label_loc, results[result], alpha=0.1, color=colors[result])
+            counter += 1
+
+        lines, labelss = plt.thetagrids(np.degrees(label_loc), labels=batches + ["final"])
+        labelss[0].set_horizontalalignment('left')
+        labelss[-1].set_horizontalalignment('left')
+        labelss[2].set_horizontalalignment('right')
+        plt.legend(bbox_to_anchor=[1.45, 1.1])
+        plt.tight_layout()
+        plt.savefig("./Figures/Reco_Radar_{}.png".format(phase))
+        plt.show()
 
 
 if __name__ == '__main__':
 
     matplotlib.rcParams.update({'font.size': 14})
 
-    # pool = Pool(12)
+    pool = Pool(12)
     # for label in ["Seed"] + labels:
         # plot_test(label, pool)
-    subplots_test(["Seed"] + labels)
+    # subplots_test(["Seed"] + labels)
     # novelty_spectrum(labels, pool)
 
     # matrix_set(labels)
@@ -216,7 +222,7 @@ if __name__ == '__main__':
     # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=None, filename="Reco_Pops")
     # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=block_buildings(), filename="Reco_Medieval",)
     # compare_plot(labels, reconstruction_accuracy, "Reconstruction Error", args=medieval_population(True), filename="Reco_Medieval", save=True)
-    # novelty_spectrum(labels, pool)
+    novelty_spectrum(labels, pool)
 
     """matrix_set(labels)
     dict = np.load("./Results/Novelty_Matrix.npy", allow_pickle=True).item()

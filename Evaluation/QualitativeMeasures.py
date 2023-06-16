@@ -1,5 +1,9 @@
+import matplotlib.pyplot as plt
+from matplotlib.colors import LightSource
+
 from Evaluation.DataLoading import load_populations, load_autoencoder, load_seed_set, load_training_set
 from Evaluation.EvalutationConfig import *
+from Evaluation.Test import new_voxel_plot
 
 
 def AVG_Plot(label, pool, args):
@@ -111,62 +115,6 @@ def novelty_search2(genome, compressed_population):
     return np.round(np.mean(distances[1:6]), 2)
 
 
-def novelty_spectrum(labels, pool):
-    xlabels = ['Most\nNovel', 'Upper\nQuartile', 'Median\nNovel', 'Lower\nQuartile', 'Least\nNovel']
-    for experiment in labels:
-        print("Starting Experiment {}".format(experiment))
-
-        for i in range(10):
-            fig = draw_lines_fig(plt.figure(figsize=(12, 12)))
-            fig.suptitle("Range of Generated Content - {}".format(experiment), fontsize=18)
-
-            phases = load_populations(experiment)
-
-            for phase in range(0, len(phases), 2):
-                print("Starting Phase {}".format(phase))
-                encoder, _ = load_autoencoder(experiment, phase)
-
-                pop = phases[phase][i]
-
-                fitness = {}
-                original = {}
-                counter = 0
-
-                compressed = {}
-                for lattice in pop:
-                    original.update({counter: convert_to_integer(lattice)})
-                    if experiment[-3:] == 'DAE':
-                        compressed.update({counter: encoder.predict(add_noise(lattice)[None])[0]})
-                    else:
-                        compressed.update({counter: encoder.predict(lattice[None])[0]})
-                    counter += 1
-                jobs = []
-                for key in compressed.keys():
-                    parameters = (compressed[key], compressed)
-                    jobs.append(pool.apply_async(novelty_search2, parameters))
-                for job, genome_id in zip(jobs, compressed.keys()):
-                    fitness.update({genome_id: job.get()})
-
-                sorted_keys = [k for k, _ in sorted(fitness.items(), key=lambda item: item[1])]
-
-                sorted_lattices = [original[key] for key in sorted_keys]
-                np.save("./Results/Qualitative/{}-{}-{}.npy".format(experiment, i, phase), sorted_lattices)
-
-                for number, plot in enumerate(np.linspace(len(sorted_keys) - 1, 0, 5, dtype=int)):
-                    ax = fig.add_subplot(novelty_spectrum_subplots[int(phase / 2)][number][0],
-                                         novelty_spectrum_subplots[int(phase / 2)][number][1],
-                                         novelty_spectrum_subplots[int(phase / 2)][number][2], projection='3d')
-
-                    ax.voxels(original[sorted_keys[plot]], edgecolor="k",
-                              facecolors=get_color_map(original[sorted_keys[plot]], 'blue'))
-                    ax.set_axis_off()
-                    if phase == 1:
-                        ax.text(-37, 0, -5, s=xlabels[number], fontsize=15)
-                    if number == 4:
-                        ax.text(5, 3, -40, s='Phase {}'.format(phase + 1), fontsize=15)
-            plt.savefig("./Figures/Qualitative/{}-{}.png".format(experiment, i))
-
-
 def expressive(phase):
     ratios = {}
     stabilities = []
@@ -229,3 +177,159 @@ def expressive_analysis(experiments, xlabel, ylabel, dict=None):
     fig.savefig("../Expressive-{}vs{}.png".format(xlabel, ylabel))
     fig.show()
 
+
+def compress_lattice(pool, encoder, lattice, counter, original, compressed):
+    original.update({counter: convert_to_integer(lattice)})
+    compressed.update({counter: encoder.predict(lattice[None], verbose=0)[0]})
+    counter += 1
+    return counter
+
+
+def compute_fitness(pool, compressed):
+    jobs = []
+    for key in compressed.keys():
+        parameters = (compressed[key], compressed)
+        jobs.append(pool.apply_async(novelty_search2, parameters))
+
+    fitness = {}
+    for job, genome_id in zip(jobs, compressed.keys()):
+        fitness.update({genome_id: job.get()})
+    return fitness
+
+
+def sort_lattices(fitness, original):
+    sorted_keys = [k for k, _ in sorted(fitness.items(), key=lambda item: item[1])]
+    sorted_lattices = [original[key] for key in sorted_keys]
+    return sorted_lattices
+
+
+def process_population(pool, encoder, population_data):
+    fitness = {}
+    original = {}
+    compressed = {}
+    counter = 0
+
+    for lattice in population_data:
+        counter = compress_lattice(pool, encoder, lattice, counter, original, compressed)
+
+    fitness = compute_fitness(pool, compressed)
+    sorted_lattices = sort_lattices(fitness, original)
+
+    return sorted_lattices
+
+
+def process_phase(pool, experiment, phase):
+    print("Starting Phase {}".format(phase))
+    encoder, _ = load_autoencoder(experiment, phase)
+    phases = load_populations(experiment)
+    phase_data = {}
+
+    for population_id in range(0, 10):
+        print("Processing Population {}".format(population_id))
+        population_data = phases[phase][population_id]
+        sorted_lattices = process_population(pool, encoder, population_data)
+        phase_data[population_id] = sorted_lattices
+
+    return phase_data
+def compress_populations(labels, pool):
+    all_experiment_data = {}
+
+    for experiment in labels:
+        print("Starting Experiment {}".format(experiment))
+        experiment_data = {}
+
+        for phase in range(10):
+            phase_data = process_phase(pool, experiment, phase)
+            experiment_data[phase] = phase_data
+
+        all_experiment_data[experiment] = experiment_data
+
+    np.save("./Results/Qualitative/all_experiment_data.npy", all_experiment_data)
+
+
+import numpy as np
+
+def save_data_as_npy(labels, populations):
+    all_experiment_data = np.load("./Results/Qualitative/all_experiment_data.npy", allow_pickle=True).item()
+
+    experiment_count = len(labels)
+
+    for population_id in populations:
+        for phase in range(10):
+            print("Starting Population {} Phase {}".format(population_id, phase))
+
+            for idx, experiment in enumerate(labels):
+                print("Starting Experiment {}".format(experiment))
+
+                experiment_data = all_experiment_data.get(experiment, None)
+                if experiment_data is None:
+                    print(f"No data found for experiment {experiment}")
+                    continue
+
+                phase_data = experiment_data.get(phase, None)
+                if phase_data is None:
+                    print(f"No data found for phase {phase} in experiment {experiment}")
+                    continue
+
+                sorted_lattices = phase_data[population_id]
+
+                for number, plot in enumerate(np.linspace(len(sorted_lattices) - 1, 0, 3, dtype=int)):
+                    building_name = f"Building_{phase}_{experiment}_{number}.npy"
+                    building_data = sorted_lattices[plot]
+                    np.save(building_name, building_data)
+
+                    print(f"Saved building data as {building_name}")
+
+
+def load_and_plot_data(labels, populations):
+    xlabels = ['Most\nNovel', 'Mid\nNovel', 'Least\nNovel']
+    all_experiment_data = np.load("./Results/Qualitative/all_experiment_data.npy", allow_pickle=True).item()
+
+    experiment_count = len(labels)
+
+    for population_id in populations:  # Swap this loop with the one below
+        for phase in range(10):  # Swap this loop with the one above
+            print("Starting Population {} Phase {}".format(population_id, phase))
+
+            fig = draw_lines_fig(plt.figure(figsize=(12, 7)))
+            # fig.suptitle("Range of Generated Content - Population {} Phase {}".format(population_id+1, phase+1), fontsize=18)
+
+            for idx, experiment in enumerate(labels):
+                print("Starting Experiment {}".format(experiment))
+
+                experiment_data = all_experiment_data.get(experiment, None)
+                if experiment_data is None:
+                    print(f"No data found for experiment {experiment}")
+                    continue
+
+                phase_data = experiment_data.get(phase, None)
+                if phase_data is None:
+                    print(f"No data found for phase {phase} in experiment {experiment}")
+                    continue
+
+                sorted_lattices = phase_data[population_id]
+
+                for number, plot in enumerate(np.linspace(len(sorted_lattices) - 1, 0, 3, dtype=int)):
+
+                    # changing subplot location based on experiment index
+                    ax = fig.add_subplot(3, experiment_count, idx + 1 + experiment_count * number, projection='3d')
+
+                    ax.set_axis_off()
+                    if number == 0:  # Add experiment name at the top of first subplot of each experiment
+                        ax.set_title('{}'.format(experiment), fontsize=15)
+                    if idx == 0:
+                        ax.text(-34 * 16, 0, -5 * 16, s=xlabels[number], fontsize=15)
+
+                    new_voxel_plot(fig, ax, sorted_lattices[plot])
+
+            plt.savefig("./Figures/Qualitative/population-{}-phase-{}.png".format(population_id, phase))
+            plt.close(fig)
+
+
+if __name__ == "__main__":
+    #pool = Pool(16)
+    #compress_populations(labels, pool)
+    #load_and_plot_data(labels, [0])
+    save_data_as_npy(labels, [0])
+    #pool.close()
+    #pool.join()
